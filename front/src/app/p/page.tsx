@@ -10,6 +10,7 @@ import PostWriteButton from "@/domain/post/components/PostWriteButton";
 import type { components } from "@/global/backend/apiV1/schema";
 import client from "@/global/backend/client";
 
+import AdSenseUnit from "@/lib/business/components/AdSenseUnit";
 import SearchHelpButton from "@/lib/business/components/SearchHelpButton";
 
 import { Button } from "@/components/ui/button";
@@ -170,6 +171,15 @@ function PageContent() {
         totalPages={totalPages}
         onPageChange={handlePageChange}
         className="mt-8"
+      />
+
+      {/* 목록 전용 슬롯이 없으면 메인 슬롯을 같이 쓴다 */}
+      <AdSenseUnit
+        slot={
+          process.env.NEXT_PUBLIC_ADSENSE_SLOT_LIST ||
+          process.env.NEXT_PUBLIC_ADSENSE_SLOT_MAIN
+        }
+        className="mt-12"
       />
     </div>
   );
