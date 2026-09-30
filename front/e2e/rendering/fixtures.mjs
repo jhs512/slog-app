@@ -51,3 +51,26 @@ export const post = {
   actorCanModify: true,
   actorCanDelete: true,
 };
+
+// 영어 fixture와 식별자·대사·상태가 같은 한글 문법. 문자열 내용은 치환하지 않는다.
+export const koreanSource = `제목: 요청과 응답
+등장인물:
+  web: {그림: 서버, 이름표: 웹 서버}
+  db: {그림: 데이터베이스, 이름표: DB}
+컷:
+  - 인물: [web, db]
+    대사: [{화자: web, 상대: db, 내용: '데이터를 부탁해! <script>alert(1)</script>'}]
+  - 구성: 이전
+    인물: [{식별자: db, 표정: 기쁨, 든소품: 데이터}]
+    대사: [{화자: db, 상대: web, 내용: '찾았어!'}]
+  - 구성: 이전
+    전달: [{주는인물: db, 받는인물: web, 소품: 데이터}]
+  - 구성: 이전
+    인물: [{식별자: web, 손모양: 인사손}]
+    대사: [{화자: web, 내용: '고마워!'}]`;
+
+export const bilingualPost = {
+  ...post,
+  id: 2,
+  content: [fence(source), fence(koreanSource)].join("\n\n"),
+};

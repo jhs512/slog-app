@@ -85,7 +85,7 @@
 ## E2E (Playwright) — `front/`
 
 - 만화 렌더링 전용: `pnpm exec playwright test --config playwright.rendering.config.ts`
-  (Docker 없이 읽기 전용 fixture API :8097 + front :3007, 운영 글 변경 없음; PC/모바일 카드·뷰어·확대·키보드 검증)
+  (Docker 없이 읽기 전용 fixture API :8097 + front :3007, 운영 글 변경 없음; 한글/영어 동등 출력·미리보기·PC/모바일 카드·뷰어·확대·키보드 검증)
 - Markdown `comic-gen` 작성법·SDK 버전: `docs/comic-gen.md`
 
 - 실행: `pnpm e2e` (헤드리스) / `pnpm e2e:ui` (UI 모드) / `pnpm exec playwright test e2e/<파일>.spec.ts`

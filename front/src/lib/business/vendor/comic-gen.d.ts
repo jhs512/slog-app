@@ -5,7 +5,7 @@ export interface ComicResult {
   diagnostics: string[];
   panels: { svg: string; width: number; height: number; index: number }[];
 }
-/** Comic Gen v0.2.1 공개 API. 원본 출처는 README.md 참고. */
+/** Comic Gen v0.3.0 공개 API. 원본 출처는 README.md 참고. */
 export function renderComic(
   source: string,
   options?: { width?: number; panelFormat?: "phone" | "compact" },

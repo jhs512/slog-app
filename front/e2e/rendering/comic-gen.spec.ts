@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { convertCodeBlocksToDiagramSyntax } from "../../src/lib/business/markdownUtils";
-import { fence, source } from "./fixtures.mjs";
+import { fence, koreanSource, source } from "./fixtures.mjs";
 
 test("VS CODE 미리보기에서도 수정한 만화가 표시된다", async ({ page }) => {
   await page.goto("/p/1/vscode");
@@ -13,7 +13,7 @@ test("VS CODE 미리보기에서도 수정한 만화가 표시된다", async ({ 
       window.monaco.editor.getModels()[0].setValue(body);
     },
     "```yml\ntitle: 검증용 제목\npublished: false\nlisted: false\n```\n\n" +
-      fence(source.replace("요청과 응답", "VS CODE 수정")),
+      fence(koreanSource.replace("요청과 응답", "VS CODE 수정")),
   );
   await expect(page.locator(".comic-gen img")).toHaveCount(1);
   await expect(page.locator(".comic-gen img").first()).toHaveAttribute(
@@ -183,7 +183,7 @@ test("편집 미리보기: 입력 변경·오류 복구·블록 삭제가 즉시
   await page.goto("/p/1/edit");
   const input = page.getByPlaceholder("내용을 입력하세요");
   await expect(input).toBeVisible();
-  await input.fill(fence(source));
+  await input.fill(fence(koreanSource));
   await page.getByRole("button", { name: "미리보기", exact: true }).click();
   await expect(page.locator(".comic-gen img")).toHaveCount(1);
   await input.fill(fence("잘못된 입력"));
@@ -209,3 +209,44 @@ test("편집 미리보기: 입력 변경·오류 복구·블록 삭제가 즉시
     "일반 문단",
   );
 });
+
+for (const width of [1440, 390]) {
+  test(`한글·영어 ${width}px: 같은 카드와 원본 SVG를 뷰어로 표시`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/p/2");
+    const cards = page.getByRole("button", {
+      name: "요청과 응답 · 만화 읽기",
+      exact: true,
+    });
+    await expect(cards).toHaveCount(2);
+    await expect(page.locator(".comic-gen [role=alert]")).toHaveCount(0);
+    const outputs: string[] = [];
+    for (let index = 0; index < 2; index++) {
+      await expect(cards.nth(index)).toContainText("4컷");
+      await cards.nth(index).click();
+      const viewer = page.getByRole("dialog", {
+        name: "요청과 응답",
+        exact: true,
+      });
+      await expect(viewer).toBeVisible();
+      const img = viewer.getByRole("img", { name: "요청과 응답", exact: true });
+      outputs.push(
+        await img.evaluate(async (el: HTMLImageElement) =>
+          (await fetch(el.src)).text(),
+        ),
+      );
+      await viewer.getByLabel("보기 크기").selectOption("2");
+      await expect
+        .poll(async () => (await img.boundingBox())!.width)
+        .toBe(1440);
+      await page.keyboard.press("Escape");
+      await expect(cards.nth(index)).toBeFocused();
+    }
+    expect(outputs[1]).toBe(outputs[0]);
+    expect(
+      [...outputs[1].matchAll(/data-panel="(\d+)"/g)].map((m) => m[1]),
+    ).toEqual(["0", "1", "2", "3"]);
+  });
+}
