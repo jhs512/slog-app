@@ -10,25 +10,49 @@
  * - ```katex, ```math     → $$katex ... $$
  */
 export function convertCodeBlocksToDiagramSyntax(content: string): string {
-  // 변환 규칙: [매칭할 코드블록 언어들, 변환될 $$ 태그명]
-  const rules: [RegExp, string][] = [
-    [/```(?:uml|plantuml)\s*\n([\s\S]*?)```/gi, "uml"],
-    [/```mermaid\s*\n([\s\S]*?)```/gi, "mermaid"],
-    [/```youtube\s*\n([\s\S]*?)```/gi, "youtube"],
-    [/```chart\s*\n([\s\S]*?)```/gi, "chart"],
-    [/```codepen\s*\n([\s\S]*?)```/gi, "codepen"],
-    [/```(?:katex|math)\s*\n([\s\S]*?)```/gi, "katex"],
-  ];
-
-  let result = content;
-  for (const [pattern, tag] of rules) {
-    result = result.replace(
-      pattern,
-      (_, code) => `$$${tag}\n${code.trim()}\n$$`,
+  const tags: Record<string, string> = {
+    uml: "uml",
+    plantuml: "uml",
+    mermaid: "mermaid",
+    youtube: "youtube",
+    chart: "chart",
+    codepen: "codepen",
+    katex: "katex",
+    math: "katex",
+  };
+  const lines = content.split("\n");
+  const result: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const opening = lines[i].match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if (!opening) {
+      result.push(lines[i]);
+      continue;
+    }
+    const [, marker, info] = opening;
+    const closing = new RegExp(
+      `^ {0,3}${marker[0]}{${marker.length},}[ \\t\\r]*$`,
     );
+    let end = i + 1;
+    while (end < lines.length && !closing.test(lines[end])) end++;
+    const tag = Object.hasOwn(tags, info.trim().toLowerCase())
+      ? tags[info.trim().toLowerCase()]
+      : undefined;
+    if (tag && end < lines.length) {
+      result.push(
+        `$$${tag}`,
+        lines
+          .slice(i + 1, end)
+          .join("\n")
+          .trim(),
+        "$$",
+      );
+    } else {
+      // comic-gen의 YAML 대사와 바깥 예제 펜스 안의 다이어그램 문법은 원문 보존.
+      result.push(...lines.slice(i, Math.min(end + 1, lines.length)));
+    }
+    i = end;
   }
-
-  return result;
+  return result.join("\n");
 }
 
 export function processMarkdownContent(

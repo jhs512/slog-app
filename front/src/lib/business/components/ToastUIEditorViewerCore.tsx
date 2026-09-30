@@ -18,6 +18,7 @@ import { forwardRef, useEffect, useMemo, useRef } from "react";
 import ViewerClass from "@toast-ui/editor/dist/toastui-editor-viewer";
 import { Viewer } from "@toast-ui/react-editor";
 
+import { comicBlockHTML, observeComicBlocks } from "../comicGen";
 import {
   convertCodeBlocksToDiagramSyntax,
   decodeDetailsBlock,
@@ -379,6 +380,8 @@ function codeSyntaxHighlightEscaped(context: any, options: any) {
       ...plugin.toHTMLRenderers,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       codeBlock(node: any, rendererContext: any) {
+        const comic = comicBlockHTML(node.info ?? "", node.literal);
+        if (comic !== null) return [{ type: "html", content: comic }];
         const tokens = originalCodeBlock(node, rendererContext);
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -536,6 +539,10 @@ export interface ToastUIEditorViewerCoreProps {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ToastUIEditorViewerCore = forwardRef<any, ToastUIEditorViewerCoreProps>(
   (props, ref) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+      if (containerRef.current) return observeComicBlocks(containerRef.current);
+    }, []);
     // 1. 코드 블록 다이어그램 문법 변환 (```uml -> $$uml$$, ```youtube -> $$youtube$$ 등)
     // 2. surl: 링크 처리
     // 3. <details> 구간을 $$details 커스텀 블록 하나로 묶기
@@ -579,13 +586,15 @@ const ToastUIEditorViewerCore = forwardRef<any, ToastUIEditorViewerCoreProps>(
     }, [processedContent]);
 
     return (
-      <Viewer
-        theme={props.theme}
-        plugins={viewerPlugins}
-        ref={ref}
-        initialValue={processedContent}
-        customHTMLRenderer={viewerCustomHTMLRenderer}
-      />
+      <div ref={containerRef}>
+        <Viewer
+          theme={props.theme}
+          plugins={viewerPlugins}
+          ref={ref}
+          initialValue={processedContent}
+          customHTMLRenderer={viewerCustomHTMLRenderer}
+        />
+      </div>
     );
   },
 );

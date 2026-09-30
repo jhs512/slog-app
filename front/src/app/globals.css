@@ -411,3 +411,22 @@ html.light .token.entity {
   margin-left: auto;
   margin-right: auto;
 }
+/* Comic Gen: 컷마다 독립 SVG 이미지, 모바일에서는 본문 폭에 맞춰 축소 */
+.toastui-editor-contents .comic-gen {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 720px;
+  margin: 24px auto;
+}
+.toastui-editor-contents .comic-gen img {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0;
+}
+.toastui-editor-contents .comic-gen [role="alert"] {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #b91c1c;
+}

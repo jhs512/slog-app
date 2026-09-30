@@ -13,6 +13,8 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import MarkdownPreview from "@/lib/business/components/MarkdownPreview";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -330,6 +332,7 @@ export default withLogin(function Page({
                   </FormItem>
                 )}
               />
+              <MarkdownPreview content={form.watch("content")} postId={id} />
             </form>
           </Form>
         </CardContent>
