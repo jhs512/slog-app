@@ -1,3 +1,4 @@
+import { mountComicCard } from "./comicViewer";
 import { escapeHtml } from "./markdownUtils";
 
 /** Toast UI의 코드 블록 AST를 사용하므로 중첩된 예제 펜스는 변환하지 않는다. */
@@ -8,14 +9,15 @@ export function comicBlockHTML(info: string, source: string): string | null {
 
 /** 각 뷰어 안에서만 실행하며 삭제된 블록과 언마운트 시 이미지 URL을 해제한다. */
 export function observeComicBlocks(root: HTMLElement): () => void {
-  const blocks = new Map<HTMLElement, string[]>();
+  const blocks = new Map<HTMLElement, (() => void)[]>();
   let disposed = false;
 
-  const release = (urls: string[]) => urls.forEach(URL.revokeObjectURL);
+  const release = (cleanups: (() => void)[]) =>
+    cleanups.forEach((cleanup) => cleanup());
   const scan = () => {
-    for (const [block, urls] of blocks) {
+    for (const [block, cleanups] of blocks) {
       if (!root.contains(block)) {
-        release(urls);
+        release(cleanups);
         blocks.delete(block);
       }
     }
@@ -23,46 +25,24 @@ export function observeComicBlocks(root: HTMLElement): () => void {
       .querySelectorAll<HTMLElement>("[data-comic-source]")
       .forEach((block) => {
         if (blocks.has(block)) return;
-        const urls: string[] = [];
-        blocks.set(block, urls);
+        const cleanups: (() => void)[] = [];
+        blocks.set(block, cleanups);
         const active = () =>
-          !disposed && root.contains(block) && blocks.get(block) === urls;
+          !disposed && root.contains(block) && blocks.get(block) === cleanups;
         void (async () => {
           try {
-            const { renderPanels } = await import("./vendor/comic-gen");
+            const { renderComic } = await import("./vendor/comic-gen");
             await document.fonts.ready;
             if (!active()) return;
-            const result = renderPanels(block.dataset.comicSource ?? "", {
-              width: 720,
-              panelFormat: "phone",
-            });
+            // 기본 원본 배치를 유지하고 모바일에서도 컷을 재배열하지 않는다.
+            const result = renderComic(block.dataset.comicSource ?? "");
             if (result.diagnostics.length)
               throw new Error(result.diagnostics.join("\n"));
-            const images = result.panels.map((panel, index) => {
-              const img = document.createElement("img");
-              const url = URL.createObjectURL(
-                new Blob([panel.svg], { type: "image/svg+xml" }),
-              );
-              urls.push(url);
-              img.src = url;
-              img.width = panel.width;
-              img.height = panel.height;
-              const svg = new DOMParser().parseFromString(
-                panel.svg,
-                "image/svg+xml",
-              );
-              img.alt =
-                svg.querySelector("title")?.textContent ??
-                `만화 ${index + 1}컷`;
-              img.decoding = "async";
-              return img;
-            });
-            // SVG를 img로 표시하면 사용자 대사/이름표가 DOM 코드로 실행되지 않는다.
-            block.replaceChildren(...images);
+            cleanups.push(mountComicCard(block, result));
             block.dataset.comicState = "ready";
           } catch (error) {
             if (!active()) return;
-            release(urls.splice(0));
+            release(cleanups.splice(0));
             const message = document.createElement("p");
             message.setAttribute("role", "alert");
             message.textContent = `만화를 표시할 수 없습니다: ${error instanceof Error ? error.message : "잠시 후 다시 시도하세요."}`;
