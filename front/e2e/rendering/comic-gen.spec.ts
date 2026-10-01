@@ -1,7 +1,36 @@
-import { expect, test } from "@playwright/test";
+import { type Locator, expect, test } from "@playwright/test";
 
 import { convertCodeBlocksToDiagramSyntax } from "../../src/lib/business/markdownUtils";
 import { fence, koreanSource, source } from "./fixtures.mjs";
+
+async function expectContained(image: Locator, region: Locator) {
+  await expect
+    .poll(async () => {
+      const bounds = (await image.boundingBox())!;
+      const available = await region.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return {
+          width:
+            el.clientWidth -
+            parseFloat(style.paddingLeft) -
+            parseFloat(style.paddingRight),
+          height:
+            el.clientHeight -
+            parseFloat(style.paddingTop) -
+            parseFloat(style.paddingBottom),
+          horizontalOverflow: el.scrollWidth - el.clientWidth,
+          verticalOverflow: el.scrollHeight - el.clientHeight,
+        };
+      });
+      return (
+        bounds.width <= available.width + 1 &&
+        bounds.height <= available.height + 1 &&
+        available.horizontalOverflow <= 1 &&
+        available.verticalOverflow <= 1
+      );
+    })
+    .toBe(true);
+}
 
 test("VS CODE 미리보기에서도 수정한 만화가 표시된다", async ({ page }) => {
   await page.goto("/p/1/vscode");
@@ -140,22 +169,44 @@ for (const width of [1440, 390]) {
     ]);
     expect(svg).toContain("&lt;script&gt;");
     const region = viewer.getByRole("region", { name: "만화 읽기 영역" });
+    const preventOverflow = viewer.getByRole("checkbox", {
+      name: "화면 넘침 방지",
+    });
+    const zoom = viewer.getByLabel("보기 크기");
+    await expect(preventOverflow).toBeChecked();
+    await expect(zoom).toHaveValue("1");
+    await expect(zoom.locator("option")).toHaveText(["100%", "150%", "200%"]);
+    await expectContained(image, region);
     const bounds = await image.boundingBox();
     expect(bounds!.width).toBeLessThan(width);
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
-    await viewer.getByLabel("보기 크기").selectOption("1");
+    await page.keyboard.press("Tab");
+    await expect(preventOverflow).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(zoom).toBeFocused();
+    await zoom.selectOption("2");
+    await expectContained(image, region);
+    await preventOverflow.uncheck();
+    await expect(zoom).toHaveValue("2");
+    await expect
+      .poll(async () => (await image.boundingBox())!.width)
+      .toBe(1440);
+    await zoom.selectOption("1");
     await expect.poll(async () => (await image.boundingBox())!.width).toBe(720);
-    await viewer.getByLabel("보기 크기").selectOption("1.5");
+    await zoom.selectOption("1.5");
     await expect
       .poll(async () => (await image.boundingBox())!.width)
       .toBe(1080);
-    await viewer.getByLabel("보기 크기").selectOption("2");
+    await zoom.selectOption("2");
     await expect
       .poll(async () => (await image.boundingBox())!.width)
       .toBe(1440);
     expect(await region.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(
       true,
     );
+    expect(
+      await region.evaluate((el) => el.scrollHeight > el.clientHeight),
+    ).toBe(true);
     await region.focus();
     await page.keyboard.press("ArrowDown");
     await expect
@@ -163,6 +214,52 @@ for (const width of [1440, 390]) {
       .toBeGreaterThan(0);
     await page.keyboard.press("Tab");
     await expect(viewer.getByRole("button", { name: "닫기" })).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(region).toBeFocused();
+    await preventOverflow.check();
+    await expect(zoom).toHaveValue("2");
+    await expectContained(image, region);
+    const fittedHeight = (await image.boundingBox())!.height;
+    await page.setViewportSize({ width, height: 540 });
+    await expectContained(image, region);
+    await expect
+      .poll(async () => (await image.boundingBox())!.height)
+      .toBeLessThan(fittedHeight);
+    const viewportHeight = await region.evaluate((el) => el.clientHeight);
+    const help = viewer.locator(".comic-viewer-help");
+    const helpText = await help.textContent();
+    await help.evaluate((el) => {
+      el.textContent = el.textContent!.repeat(5);
+    });
+    await expect
+      .poll(() => region.evaluate((el) => el.clientHeight))
+      .toBeLessThan(viewportHeight);
+    await expectContained(image, region);
+    await help.evaluate((el: HTMLElement) => {
+      el.style.height = "1000px";
+    });
+    await expect
+      .poll(() => image.evaluate((el) => el.getBoundingClientRect().width))
+      .toBe(0);
+    await help.evaluate((el: HTMLElement, text) => {
+      el.style.height = "";
+      el.textContent = text;
+    }, helpText);
+    await page.setViewportSize({ width: 280, height: 1000 });
+    await expectContained(image, region);
+    const innerWidth = await region.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return (
+        el.clientWidth -
+        parseFloat(style.paddingLeft) -
+        parseFloat(style.paddingRight)
+      );
+    });
+    await expect
+      .poll(async () => (await image.boundingBox())!.width)
+      .toBeCloseTo(innerWidth, 0);
+    await page.setViewportSize({ width, height: 844 });
+    await expectContained(image, region);
     await page.keyboard.press("Escape");
     await expect(viewer).toBeHidden();
     await expect(card).toBeFocused();
@@ -170,7 +267,9 @@ for (const width of [1440, 390]) {
       "hidden",
     );
     await card.click();
-    await expect(viewer.getByLabel("보기 크기")).toHaveValue("fit");
+    await expect(zoom).toHaveValue("1");
+    await expect(preventOverflow).toBeChecked();
+    await expectContained(image, region);
     expect(await region.evaluate((el) => el.scrollTop)).toBe(0);
     await page.screenshot({ path: `test-results/comic-viewer-${width}.png` });
     await viewer.getByRole("button", { name: "닫기" }).click();
@@ -237,6 +336,7 @@ for (const width of [1440, 390]) {
           (await fetch(el.src)).text(),
         ),
       );
+      await viewer.getByRole("checkbox", { name: "화면 넘침 방지" }).uncheck();
       await viewer.getByLabel("보기 크기").selectOption("2");
       await expect
         .poll(async () => (await img.boundingBox())!.width)

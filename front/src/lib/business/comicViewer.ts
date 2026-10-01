@@ -46,6 +46,8 @@ export function mountComicCard(
   button.append(thumbnail, copy);
   block.replaceChildren(button);
   let dialog: HTMLDialogElement | undefined;
+  let resizeObserver: ResizeObserver | undefined;
+  let updateSize: (() => void) | undefined;
   let previousOverflow: string | undefined;
   const restore = () => {
     if (previousOverflow === undefined) return;
@@ -61,19 +63,52 @@ export function mountComicCard(
       dialog.setAttribute("aria-labelledby", `${id}-title`);
       dialog.setAttribute("aria-describedby", `${id}-help`);
       // 정적 UI만 HTML로 삽입한다. 사용자 제목과 SVG는 textContent와 img로 표시한다.
-      dialog.innerHTML = `<div class="comic-viewer-toolbar"><h2 class="comic-viewer-title" id="${id}-title"></h2><button type="button" autofocus>닫기</button><label>보기 크기 <select><option value="fit">화면 너비 맞춤</option><option value="1">원본 크기 (100%)</option><option value="1.5">확대 (150%)</option><option value="2">확대 (200%)</option></select></label></div><p class="comic-viewer-help" id="${id}-help">확대하면 가로·세로로 스크롤해 읽을 수 있습니다. 원래 컷 배치는 유지됩니다.</p><div class="comic-viewer-viewport" tabindex="0" role="region" aria-label="만화 읽기 영역"><div class="comic-viewer-artwork"></div></div>`;
+      dialog.innerHTML = `<div class="comic-viewer-toolbar"><h2 class="comic-viewer-title" id="${id}-title"></h2><button type="button" autofocus>닫기</button><div class="comic-viewer-controls"><label><input type="checkbox" checked>화면 넘침 방지</label><label>보기 크기 <select><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option></select></label></div></div><p class="comic-viewer-help" id="${id}-help">화면 넘침 방지를 끄면 가로·세로로 스크롤해 읽을 수 있습니다. 원래 컷 배치는 유지됩니다.</p><div class="comic-viewer-viewport" tabindex="0" role="region" aria-label="만화 읽기 영역"><div class="comic-viewer-artwork"></div></div>`;
       dialog.querySelector("h2")!.textContent = title;
+      const viewport = dialog.querySelector<HTMLElement>(
+        ".comic-viewer-viewport",
+      )!;
       const artwork = dialog.querySelector<HTMLElement>(
         ".comic-viewer-artwork",
       )!;
       artwork.append(image(result.svg, result.width, result.height, title));
       const zoom = dialog.querySelector("select")!;
-      zoom.addEventListener("change", () => {
-        artwork.style.width =
-          zoom.value === "fit"
-            ? "100%"
-            : `${result.width * Number(zoom.value)}px`;
-      });
+      const preventOverflow = dialog.querySelector<HTMLInputElement>(
+        'input[type="checkbox"]',
+      )!;
+      updateSize = () => {
+        if (!dialog?.open) return;
+        viewport.dataset.preventOverflow = String(preventOverflow.checked);
+        const targetWidth = result.width * Number(zoom.value);
+        let width = targetWidth;
+        if (preventOverflow.checked) {
+          const style = getComputedStyle(viewport);
+          const availableWidth = Math.max(
+            0,
+            viewport.clientWidth -
+              parseFloat(style.paddingLeft) -
+              parseFloat(style.paddingRight),
+          );
+          const availableHeight = Math.max(
+            0,
+            viewport.clientHeight -
+              parseFloat(style.paddingTop) -
+              parseFloat(style.paddingBottom),
+          );
+          // 렌더 결과의 크기를 사용하므로 비동기 이미지 로딩 전에도 비율이 같다.
+          width = Math.min(
+            targetWidth,
+            availableWidth,
+            (availableHeight * result.width) / result.height,
+          );
+          viewport.scrollTo(0, 0);
+        }
+        artwork.style.width = `${width}px`;
+      };
+      zoom.addEventListener("change", updateSize);
+      preventOverflow.addEventListener("change", updateSize);
+      resizeObserver = new ResizeObserver(updateSize);
+      resizeObserver.observe(viewport);
       dialog.querySelector("button")!.addEventListener("click", () => {
         dialog!.close();
         restore();
@@ -88,7 +123,7 @@ export function mountComicCard(
       dialog.addEventListener("keydown", (event) => {
         if (event.key !== "Tab") return;
         const controls = dialog!.querySelectorAll<HTMLElement>(
-          "button, select, [tabindex='0']",
+          "button, input, select, [tabindex='0']",
         );
         const first = controls[0];
         const last = controls[controls.length - 1];
@@ -102,17 +137,19 @@ export function mountComicCard(
       });
       document.body.append(dialog);
     }
-    dialog.querySelector("select")!.value = "fit";
-    dialog.querySelector<HTMLElement>(".comic-viewer-artwork")!.style.width =
-      "100%";
+    dialog.querySelector("select")!.value = "1";
+    dialog.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked =
+      true;
     previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     dialog.showModal();
+    updateSize!();
     dialog.querySelector(".comic-viewer-viewport")!.scrollTo(0, 0);
   };
   button.addEventListener("click", open);
   return () => {
     button.removeEventListener("click", open);
+    resizeObserver?.disconnect();
     if (dialog?.open) dialog.close();
     restore();
     dialog?.remove();

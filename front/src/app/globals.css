@@ -452,6 +452,7 @@ html.light .token.entity {
 }
 .comic-card:focus-visible,
 .comic-viewer button:focus-visible,
+.comic-viewer input:focus-visible,
 .comic-viewer select:focus-visible {
   outline: 3px solid #8096ff;
   outline-offset: 3px;
@@ -525,13 +526,28 @@ html.light .token.entity {
   letter-spacing: 0;
   overflow-wrap: anywhere;
 }
-.comic-viewer-toolbar label {
+.comic-viewer-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  max-width: 100%;
+}
+.comic-viewer-controls label {
   display: flex;
   align-items: center;
   gap: 8px;
   margin: 0;
   color: inherit;
   font-size: 13px;
+  white-space: nowrap;
+}
+.comic-viewer-controls input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #526fea;
+  cursor: pointer;
 }
 .comic-viewer button,
 .comic-viewer select {
@@ -556,6 +572,9 @@ html.light .token.entity {
   overflow: auto;
   overscroll-behavior: contain;
   padding: 16px;
+}
+.comic-viewer-viewport[data-prevent-overflow="true"] {
+  overflow: hidden;
 }
 .comic-viewer-artwork {
   margin: 0 auto;
