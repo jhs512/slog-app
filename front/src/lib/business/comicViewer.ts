@@ -63,7 +63,7 @@ export function mountComicCard(
       dialog.setAttribute("aria-labelledby", `${id}-title`);
       dialog.setAttribute("aria-describedby", `${id}-help`);
       // 정적 UI만 HTML로 삽입한다. 사용자 제목과 SVG는 textContent와 img로 표시한다.
-      dialog.innerHTML = `<div class="comic-viewer-toolbar"><h2 class="comic-viewer-title" id="${id}-title"></h2><button type="button" autofocus>닫기</button><div class="comic-viewer-controls"><label><input type="checkbox" checked>화면 넘침 방지</label><label>보기 크기 <select><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option></select></label></div></div><p class="comic-viewer-help" id="${id}-help">화면 넘침 방지를 끄면 가로·세로로 스크롤해 읽을 수 있습니다. 원래 컷 배치는 유지됩니다.</p><div class="comic-viewer-viewport" tabindex="0" role="region" aria-label="만화 읽기 영역"><div class="comic-viewer-artwork"></div></div>`;
+      dialog.innerHTML = `<div class="comic-viewer-toolbar"><h2 class="comic-viewer-title" id="${id}-title"></h2><button type="button" autofocus>닫기</button><div class="comic-viewer-controls"><label><input type="checkbox" checked>화면 넘침 방지</label><label>보기 크기 <select><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option></select></label></div></div><p class="comic-viewer-help" id="${id}-help">화면 넘침 방지는 한 컷의 너비·높이를 화면에 맞춥니다. 다음 컷은 아래로 스크롤해 읽습니다. 원래 컷 배치는 유지됩니다.</p><div class="comic-viewer-viewport" tabindex="0" role="region" aria-label="만화 읽기 영역"><div class="comic-viewer-artwork"></div></div>`;
       dialog.querySelector("h2")!.textContent = title;
       const viewport = dialog.querySelector<HTMLElement>(
         ".comic-viewer-viewport",
@@ -76,6 +76,13 @@ export function mountComicCard(
       const preventOverflow = dialog.querySelector<HTMLInputElement>(
         'input[type="checkbox"]',
       )!;
+      // 독립 컷의 제목·여백까지 포함한 크기로 가장 큰 컷을 맞춘다.
+      // 전체 SVG를 그대로 축소하므로 컷 사이의 간격과 배치는 유지된다.
+      const panelHeight = Math.max(
+        ...result.panels.map(
+          (panel) => (panel.height * result.width) / panel.width,
+        ),
+      );
       updateSize = () => {
         if (!dialog?.open) return;
         viewport.dataset.preventOverflow = String(preventOverflow.checked);
@@ -99,9 +106,8 @@ export function mountComicCard(
           width = Math.min(
             targetWidth,
             availableWidth,
-            (availableHeight * result.width) / result.height,
+            (availableHeight * result.width) / panelHeight,
           );
-          viewport.scrollTo(0, 0);
         }
         artwork.style.width = `${width}px`;
       };

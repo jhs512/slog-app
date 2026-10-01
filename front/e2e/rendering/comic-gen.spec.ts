@@ -4,6 +4,21 @@ import { convertCodeBlocksToDiagramSyntax } from "../../src/lib/business/markdow
 import { fence, koreanSource, source } from "./fixtures.mjs";
 
 async function expectContained(image: Locator, region: Locator) {
+  // 전체 이미지 높이가 아니라 실제 컷 프레임을 확인한다.
+  const panels = await image.evaluate(async (img: HTMLImageElement) => {
+    const xml = new DOMParser().parseFromString(
+      await (await fetch(img.src)).text(),
+      "image/svg+xml",
+    );
+    const width = Number(xml.documentElement.getAttribute("width"));
+    return [...xml.querySelectorAll("g[data-panel]")].map((group) => {
+      const rect = group.querySelector("rect")!;
+      return {
+        width: Number(rect.getAttribute("width")) / width,
+        height: Number(rect.getAttribute("height")) / width,
+      };
+    });
+  });
   await expect
     .poll(async () => {
       const bounds = (await image.boundingBox())!;
@@ -19,19 +34,20 @@ async function expectContained(image: Locator, region: Locator) {
             parseFloat(style.paddingTop) -
             parseFloat(style.paddingBottom),
           horizontalOverflow: el.scrollWidth - el.clientWidth,
-          verticalOverflow: el.scrollHeight - el.clientHeight,
         };
       });
       return (
         bounds.width <= available.width + 1 &&
-        bounds.height <= available.height + 1 &&
         available.horizontalOverflow <= 1 &&
-        available.verticalOverflow <= 1
+        panels.every(
+          (panel) =>
+            panel.width * bounds.width <= available.width + 1 &&
+            panel.height * bounds.width <= available.height + 1,
+        )
       );
     })
     .toBe(true);
 }
-
 test("VS CODE 미리보기에서도 수정한 만화가 표시된다", async ({ page }) => {
   await page.goto("/p/1/vscode");
   await page.getByRole("button", { name: "미리보기", exact: true }).click();
@@ -220,7 +236,7 @@ for (const width of [1440, 390]) {
     await expect(zoom).toHaveValue("2");
     await expectContained(image, region);
     const fittedHeight = (await image.boundingBox())!.height;
-    await page.setViewportSize({ width, height: 540 });
+    await page.setViewportSize({ width, height: 360 });
     await expectContained(image, region);
     await expect
       .poll(async () => (await image.boundingBox())!.height)
@@ -348,5 +364,75 @@ for (const width of [1440, 390]) {
     expect(
       [...outputs[1].matchAll(/data-panel="(\d+)"/g)].map((m) => m[1]),
     ).toEqual(["0", "1", "2", "3"]);
+  });
+}
+
+for (const width of [1440, 390]) {
+  test(`한 컷 맞춤 ${width}px: 1·2·7·30컷과 서로 다른 컷 높이`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/p/1/edit");
+    const input = page.getByPlaceholder("내용을 입력하세요");
+    await page.getByRole("button", { name: "미리보기", exact: true }).click();
+    for (const count of [1, 2, 7, 30]) {
+      const panels = Array.from({ length: count }, (_, index) => ({
+        인물: ["a"],
+        대사: Array.from(
+          { length: index === count - 1 ? 5 : 1 },
+          (_, line) => ({
+            화자: "a",
+            내용: `${index + 1}번째 컷 ${line + 1}번째 대사`,
+          }),
+        ),
+      }));
+      await input.fill(
+        fence(
+          `제목: ${count}컷 맞춤\n등장인물: {a: {그림: 서버}}\n컷: ${JSON.stringify(panels)}`,
+        ),
+      );
+      await page
+        .getByRole("button", {
+          name: `${count}컷 맞춤 · 만화 읽기`,
+          exact: true,
+        })
+        .click();
+      const viewer = page.getByRole("dialog", {
+        name: `${count}컷 맞춤`,
+        exact: true,
+      });
+      const image = viewer.getByRole("img", {
+        name: `${count}컷 맞춤`,
+        exact: true,
+      });
+      const region = viewer.getByRole("region", { name: "만화 읽기 영역" });
+      await expectContained(image, region);
+      const svg = await image.evaluate(async (img: HTMLImageElement) =>
+        (await fetch(img.src)).text(),
+      );
+      expect(
+        [...svg.matchAll(/data-panel="(\d+)"/g)].map((m) => Number(m[1])),
+      ).toEqual(Array.from({ length: count }, (_, i) => i));
+      if (count >= 7) {
+        await expect
+          .poll(() =>
+            region.evaluate((el) => el.scrollHeight > el.clientHeight),
+          )
+          .toBe(true);
+        // 맞춤을 켠 상태로 키보드와 스크롤로 마지막 컷까지 읽을 수 있다.
+        await region.focus();
+        await page.keyboard.press("ArrowDown");
+        await expect
+          .poll(() => region.evaluate((el) => el.scrollTop))
+          .toBeGreaterThan(0);
+        await region.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+        expect(
+          await region.evaluate(
+            (el) => el.scrollTop + el.clientHeight >= el.scrollHeight - 1,
+          ),
+        ).toBe(true);
+      }
+      await page.keyboard.press("Escape");
+    }
   });
 }

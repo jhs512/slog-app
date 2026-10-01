@@ -574,7 +574,8 @@ html.light .token.entity {
   padding: 16px;
 }
 .comic-viewer-viewport[data-prevent-overflow="true"] {
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 .comic-viewer-artwork {
   margin: 0 auto;
