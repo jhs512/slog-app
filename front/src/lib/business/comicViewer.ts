@@ -1,3 +1,4 @@
+import { mountPanelNavigation, readPanelBounds } from "./comicNavigation";
 import type { ComicResult } from "./vendor/comic-gen";
 
 let nextId = 0;
@@ -46,6 +47,7 @@ export function mountComicCard(
   button.append(thumbnail, copy);
   block.replaceChildren(button);
   let dialog: HTMLDialogElement | undefined;
+  let navigation: ReturnType<typeof mountPanelNavigation> | undefined;
   let resizeObserver: ResizeObserver | undefined;
   let updateSize: (() => void) | undefined;
   let previousOverflow: string | undefined;
@@ -63,7 +65,7 @@ export function mountComicCard(
       dialog.setAttribute("aria-labelledby", `${id}-title`);
       dialog.setAttribute("aria-describedby", `${id}-help`);
       // 정적 UI만 HTML로 삽입한다. 사용자 제목과 SVG는 textContent와 img로 표시한다.
-      dialog.innerHTML = `<div class="comic-viewer-toolbar"><h2 class="comic-viewer-title" id="${id}-title"></h2><button type="button" autofocus>닫기</button><div class="comic-viewer-controls"><label><input type="checkbox" checked>화면 넘침 방지</label><label>보기 크기 <select><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option></select></label></div></div><p class="comic-viewer-help" id="${id}-help">화면 넘침 방지는 한 컷의 너비·높이를 화면에 맞춥니다. 다음 컷은 아래로 스크롤해 읽습니다. 원래 컷 배치는 유지됩니다.</p><div class="comic-viewer-viewport" tabindex="0" role="region" aria-label="만화 읽기 영역"><div class="comic-viewer-artwork"></div></div>`;
+      dialog.innerHTML = `<div class="comic-viewer-toolbar"><h2 class="comic-viewer-title" id="${id}-title"></h2><button type="button" autofocus>닫기</button><div class="comic-viewer-controls"><label><input type="checkbox" checked>화면 넘침 방지</label><label>보기 크기 <select><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option></select></label><button type="button" class="comic-previous" aria-label="이전 컷">←</button><span class="comic-position" role="status" aria-live="polite"></span><button type="button" class="comic-next" aria-label="다음 컷">→</button></div></div><p class="comic-viewer-help" id="${id}-help">화면 넘침 방지는 한 컷의 너비·높이를 화면에 맞춥니다. 다음 컷은 아래로 스크롤해 읽습니다. 컷 왼쪽은 이전, 오른쪽은 다음 컷입니다. 읽기 영역에서 ←/→ 키로도 이동합니다.</p><div class="comic-viewer-viewport" tabindex="0" role="region" aria-label="만화 읽기 영역"><div class="comic-viewer-artwork"></div></div>`;
       dialog.querySelector("h2")!.textContent = title;
       const viewport = dialog.querySelector<HTMLElement>(
         ".comic-viewer-viewport",
@@ -71,7 +73,17 @@ export function mountComicCard(
       const artwork = dialog.querySelector<HTMLElement>(
         ".comic-viewer-artwork",
       )!;
-      artwork.append(image(result.svg, result.width, result.height, title));
+      const comicImage = image(result.svg, result.width, result.height, title);
+      artwork.append(comicImage);
+      navigation = mountPanelNavigation(
+        viewport,
+        comicImage,
+        readPanelBounds(result.svg),
+        result.width,
+        dialog.querySelector<HTMLButtonElement>(".comic-previous")!,
+        dialog.querySelector<HTMLButtonElement>(".comic-next")!,
+        dialog.querySelector<HTMLElement>(".comic-position")!,
+      );
       const zoom = dialog.querySelector("select")!;
       const preventOverflow = dialog.querySelector<HTMLInputElement>(
         'input[type="checkbox"]',
@@ -129,7 +141,7 @@ export function mountComicCard(
       dialog.addEventListener("keydown", (event) => {
         if (event.key !== "Tab") return;
         const controls = dialog!.querySelectorAll<HTMLElement>(
-          "button, input, select, [tabindex='0']",
+          "button:not(:disabled), input, select, [tabindex='0']",
         );
         const first = controls[0];
         const last = controls[controls.length - 1];
@@ -151,10 +163,12 @@ export function mountComicCard(
     dialog.showModal();
     updateSize!();
     dialog.querySelector(".comic-viewer-viewport")!.scrollTo(0, 0);
+    navigation?.reset();
   };
   button.addEventListener("click", open);
   return () => {
     button.removeEventListener("click", open);
+    navigation?.dispose();
     resizeObserver?.disconnect();
     if (dialog?.open) dialog.close();
     restore();

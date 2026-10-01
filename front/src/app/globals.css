@@ -628,3 +628,12 @@ html.light .token.entity {
 .comic-viewer-artwork img {
   margin: 0;
 }
+.comic-viewer button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.comic-position {
+  min-width: 5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
