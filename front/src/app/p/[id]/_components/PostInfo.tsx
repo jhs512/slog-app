@@ -3,10 +3,11 @@ import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { useAuthContext } from "@/global/auth/hooks/useAuth";
 
+import PostSpeech from "@/lib/business/components/PostSpeech";
 import ToastUIEditorViewer from "@/lib/business/components/ToastUIEditorViewer";
 import { formatDate } from "@/lib/utils";
 
@@ -53,6 +54,7 @@ export default function PostInfo({
   const { post, deletePost: _deletePost, toggleLike, editorRef } = postState;
   const { loginMember, isLogin, isAdmin } = useAuthContext();
   const [isDeleting, setIsDeleting] = useState(false);
+  const contentRoot = useRef<HTMLDivElement>(null);
 
   const isAuthor = isLogin && loginMember.id === post?.authorId;
   const canEdit = isAuthor;
@@ -133,7 +135,8 @@ export default function PostInfo({
         </div>
       </header>
 
-      <div className="prose dark:prose-invert max-w-none">
+      <PostSpeech key={post.id} contentRoot={contentRoot} />
+      <div ref={contentRoot} className="prose dark:prose-invert max-w-none">
         <ToastUIEditorViewer
           ref={editorRef}
           key={resolvedTheme}

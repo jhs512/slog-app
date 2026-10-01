@@ -104,6 +104,23 @@ export const umlSource = `제목: UML 설명
           Server-->>Client: 응답`;
 export const umlPost = { ...post, id: 3, content: fence(umlSource) };
 
+export const speechPost = {
+  ...post,
+  id: 4,
+  title: "읽어주기 검증",
+  content: [
+    "## 읽기 제목",
+    "첫 문장입니다. API와 DB를 설명합니다. 마지막 문장입니다.",
+    "연산은 2²과 3 × 4입니다. [설명 링크](https://example.com)를 읽습니다.",
+    fence("console.log('코드는 읽지 않음');", "javascript"),
+    fence(source),
+    "<details>\n<summary>접힌 설명</summary>\n\n접힌 문장은 읽지 않습니다.\n\n</details>",
+    "<span hidden>숨겨진 정보</span>",
+    '<span aria-hidden="true">보조 UI 정보</span>',
+    "| 항목 | 설명 |\n| --- | --- |\n| 한국어 | 표의 내용을 읽습니다. |",
+  ].join("\n\n"),
+};
+
 export const umlEnglishSource = umlSource
   .replaceAll("제목:", "title:")
   .replaceAll("등장인물:", "cast:")
