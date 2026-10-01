@@ -1,3 +1,4 @@
+import { loadComicViewer } from "./comicViewerCDN";
 import { escapeHtml } from "./markdownUtils";
 
 /** Toast UI의 코드 블록 AST를 사용하므로 중첩된 예제 펜스는 변환하지 않는다. */
@@ -28,12 +29,20 @@ export function observeComicBlocks(root: HTMLElement): () => void {
         blocks.set(block, cleanups);
         const active = () =>
           !disposed && root.contains(block) && blocks.get(block) === cleanups;
-        void (async () => {
+        const load = async () => {
+          if (!active()) return;
+          release(cleanups.splice(0));
+          block.setAttribute("aria-busy", "true");
+          block.dataset.comicState = "loading";
+          const status = document.createElement("p");
+          status.setAttribute("role", "status");
+          status.textContent = "만화를 불러오는 중...";
+          block.replaceChildren(status);
           try {
             const [{ renderComicAsync }, { mountComicCard }] =
               await Promise.all([
                 import("./vendor/comic-gen.render"),
-                import("./vendor/comic-gen.viewer"),
+                loadComicViewer(),
               ]);
             await document.fonts.ready;
             if (!active()) return;
@@ -53,12 +62,19 @@ export function observeComicBlocks(root: HTMLElement): () => void {
             const message = document.createElement("p");
             message.setAttribute("role", "alert");
             message.textContent = `만화를 표시할 수 없습니다: ${error instanceof Error ? error.message : "잠시 후 다시 시도하세요."}`;
-            block.replaceChildren(message);
+            const retry = document.createElement("button");
+            retry.type = "button";
+            retry.textContent = "만화 다시 불러오기";
+            const onRetry = () => void load();
+            retry.addEventListener("click", onRetry, { once: true });
+            cleanups.push(() => retry.removeEventListener("click", onRetry));
+            block.replaceChildren(message, retry);
             block.dataset.comicState = "error";
           } finally {
             if (active()) block.setAttribute("aria-busy", "false");
           }
-        })();
+        };
+        void load();
       });
   };
   const observer = new MutationObserver(scan);

@@ -87,6 +87,7 @@
 - 만화 렌더링 전용: `pnpm exec playwright test --config playwright.rendering.config.ts`
   (Docker 없이 읽기 전용 fixture API :8097 + front :3007, 운영 글 변경 없음; 한글/영어 동등 출력·Mermaid UML·비동기 취소/오류·미리보기·PC/모바일 카드·뷰어·한 컷 맞춤(1~30컷)·이전/다음 이동·확대·키보드 검증)
 - Markdown `comic-gen` 작성법·SDK 버전: `docs/comic-gen.md`
+- 공식 뷰어 CDN·공유 로딩·재시도·시간 초과·블록 정리: `pnpm exec playwright test --config playwright.rendering.config.ts e2e/rendering/comic-cdn.spec.ts`
 - 읽어주기 엔진·발음·수식 검사: `pnpm test:speech`
 - 읽어주기 UI 전용: `pnpm exec playwright test --config playwright.rendering.config.ts e2e/rendering/speech.spec.ts`
   (읽기 전용 fixture + 모의 음성; 실제 소리 출력과 구분, 사용법·출처: `docs/read-aloud.md`)

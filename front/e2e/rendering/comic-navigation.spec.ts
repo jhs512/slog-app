@@ -1,5 +1,4 @@
 import { type Locator, type Page, expect, test } from "@playwright/test";
-import { readFileSync } from "node:fs";
 
 import { fence } from "./fixtures.mjs";
 
@@ -159,35 +158,29 @@ for (const width of [1440, 390]) {
 test("가로 배치: 공개 뷰어가 실제 SVG 좌표로 좌우 스크롤한다", async ({
   page,
 }) => {
-  const code = readFileSync(
-    "src/lib/business/vendor/comic-gen.viewer.js",
-    "utf8",
-  );
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/p/1");
-  await page.evaluate(async (code) => {
-    const sdk = await import(
-      URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-    );
+  await page.evaluate(async () => {
+    const url =
+      "https://cdn.jsdelivr.net/gh/jhs512/comic-gen@v0.5.0/cdn/comic-gen.viewer.js";
+    const sdk = await import(url);
     if (sdk.renderComic || sdk.renderComicAsync)
       throw new Error("선택형 뷰어에 렌더러 의존성 포함");
     const svg =
       '<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="400" aria-label="가로 만화"><g transform="translate(40 60)"><g data-panel="0"><rect width="300" height="240" fill="pink"/></g><g data-panel="1" transform="translate(400 0)"><rect width="300" height="280" fill="lightblue"/></g><g data-panel="2" transform="translate(800 0)"><rect width="300" height="240" fill="orange"/></g></g></svg>';
-    sdk
-      .createComicViewer()
-      .open({
-        svg,
-        width: 1400,
+    sdk.createComicViewer().open({
+      svg,
+      width: 1400,
+      height: 400,
+      diagnostics: [],
+      panels: [0, 1, 2].map((index) => ({
+        svg: `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400"><g data-panel="${index}"><rect width="300" height="${index === 1 ? 280 : 240}" fill="pink"/></g></svg>`,
+        width: 300,
         height: 400,
-        diagnostics: [],
-        panels: [0, 1, 2].map((index) => ({
-          svg: `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400"><g data-panel="${index}"><rect width="300" height="${index === 1 ? 280 : 240}" fill="pink"/></g></svg>`,
-          width: 300,
-          height: 400,
-          index,
-        })),
-      });
-  }, code);
+        index,
+      })),
+    });
+  });
   const viewer = page.getByRole("dialog");
   await viewer.getByRole("checkbox").uncheck();
   const viewport = viewer.getByRole("region", { name: "만화 읽기 영역" });
