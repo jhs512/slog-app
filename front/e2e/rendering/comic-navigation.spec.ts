@@ -1,6 +1,5 @@
 import { type Locator, type Page, expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import ts from "typescript";
 
 import { fence } from "./fixtures.mjs";
 
@@ -157,73 +156,58 @@ for (const width of [1440, 390]) {
   });
 }
 
-test("가로 배치: 실제 SVG 좌표로 좌우 스크롤하고 컷 순서를 유지", async ({
+test("가로 배치: 공개 뷰어가 실제 SVG 좌표로 좌우 스크롤한다", async ({
   page,
 }) => {
-  const code = ts.transpileModule(
-    readFileSync("src/lib/business/comicNavigation.ts", "utf8"),
-    {
-      compilerOptions: {
-        module: ts.ModuleKind.ESNext,
-        target: ts.ScriptTarget.ES2022,
-      },
-    },
-  ).outputText;
+  const code = readFileSync(
+    "src/lib/business/vendor/comic-gen.viewer.js",
+    "utf8",
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/p/1");
   await page.evaluate(async (code) => {
     const sdk = await import(
       URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
     );
+    if (sdk.renderComic || sdk.renderComicAsync)
+      throw new Error("선택형 뷰어에 렌더러 의존성 포함");
     const svg =
-      '<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="400"><g transform="translate(40 60)"><g data-panel="0"><rect width="300" height="240" fill="pink"/></g><g data-panel="1" transform="translate(400 0)"><rect width="300" height="280" fill="lightblue"/></g><g data-panel="2" transform="translate(800 0)"><rect width="300" height="240" fill="orange"/></g></g></svg>';
-    const viewport = document.createElement("div");
-    viewport.id = "horizontal-test";
-    viewport.tabIndex = 0;
-    Object.assign(viewport.style, {
-      position: "fixed",
-      inset: "0",
-      width: "380px",
-      height: "350px",
-      overflow: "auto",
-      background: "white",
-      zIndex: "99999",
-    });
-    const img = new Image();
-    img.width = 1400;
-    img.height = 400;
-    img.style.maxWidth = "none";
-    img.src = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
-    viewport.append(img);
-    const previous = document.createElement("button"),
-      next = document.createElement("button"),
-      status = document.createElement("span");
-    previous.id = "back";
-    next.id = "forward";
-    status.id = "position";
-    document.body.append(viewport, previous, next, status);
-    sdk.mountPanelNavigation(
-      viewport,
-      img,
-      sdk.readPanelBounds(svg),
-      1400,
-      previous,
-      next,
-      status,
-    );
+      '<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="400" aria-label="가로 만화"><g transform="translate(40 60)"><g data-panel="0"><rect width="300" height="240" fill="pink"/></g><g data-panel="1" transform="translate(400 0)"><rect width="300" height="280" fill="lightblue"/></g><g data-panel="2" transform="translate(800 0)"><rect width="300" height="240" fill="orange"/></g></g></svg>';
+    sdk
+      .createComicViewer()
+      .open({
+        svg,
+        width: 1400,
+        height: 400,
+        diagnostics: [],
+        panels: [0, 1, 2].map((index) => ({
+          svg: `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400"><g data-panel="${index}"><rect width="300" height="${index === 1 ? 280 : 240}" fill="pink"/></g></svg>`,
+          width: 300,
+          height: 400,
+          index,
+        })),
+      });
   }, code);
-  const viewport = page.locator("#horizontal-test"),
-    status = page.locator("#position");
+  const viewer = page.getByRole("dialog");
+  await viewer.getByRole("checkbox").uncheck();
+  const viewport = viewer.getByRole("region", { name: "만화 읽기 영역" });
+  const status = viewer.getByRole("status");
   await viewport.focus();
   await page.keyboard.press("ArrowRight");
   await expect(status).toHaveText("2 / 3컷");
-  expect(await viewport.evaluate((el) => el.scrollLeft)).toBe(440);
-  await page.mouse.click(225, 120);
+  const secondOffset = await viewport.evaluate((el) => el.scrollLeft);
+  expect(secondOffset).toBeGreaterThan(300);
+  await page.keyboard.press("ArrowRight");
   await expect(status).toHaveText("3 / 3컷");
-  expect(await viewport.evaluate((el) => el.scrollLeft)).toBe(840);
-  await page.mouse.click(50, 120);
+  expect(await viewport.evaluate((el) => el.scrollLeft)).toBeGreaterThan(
+    secondOffset,
+  );
+  await viewer.getByRole("button", { name: "이전 컷", exact: true }).click();
   await expect(status).toHaveText("2 / 3컷");
   await viewport.focus();
   await page.keyboard.press("ArrowLeft");
   await expect(status).toHaveText("1 / 3컷");
-  await expect(page.locator("#back")).toBeDisabled();
+  await expect(
+    viewer.getByRole("button", { name: "이전 컷", exact: true }),
+  ).toBeDisabled();
 });

@@ -1,2 +1,2 @@
 # 공개 SDK의 원본 바이트와 SHA-256을 모든 환경에서 유지한다.
-front/src/lib/business/vendor/comic-gen.js -text
+front/src/lib/business/vendor/comic-gen.* -text

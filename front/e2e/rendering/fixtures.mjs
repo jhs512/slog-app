@@ -74,3 +74,50 @@ export const bilingualPost = {
   id: 2,
   content: [fence(source), fence(koreanSource)].join("\n\n"),
 };
+
+export const umlSource = `제목: UML 설명
+등장인물:
+  teacher: {그림: 서버, 이름표: 선생님}
+  student: {그림: 클라이언트, 이름표: 학생}
+컷:
+  - 인물: [teacher, student]
+    대사: [{화자: teacher, 상대: student, 내용: 회원 한 명이 여러 주문을 만들어요.}]
+    다이어그램:
+      종류: 머메이드
+      제목: 회원과 주문
+      원문: |-
+        classDiagram
+          Member "1" --> "many" Order
+          Member : +String name
+          Order : +int amount
+  - 구성: 이전
+    대사: [{화자: student, 상대: teacher, 내용: 요청과 응답 순서도 이해했어요.}]
+    다이어그램:
+      종류: 머메이드
+      제목: 요청 순서
+      높이: 450
+      원문: |-
+        sequenceDiagram
+          participant Client as 방문자
+          participant Server as 서버
+          Client->>Server: 요청
+          Server-->>Client: 응답`;
+export const umlPost = { ...post, id: 3, content: fence(umlSource) };
+
+export const umlEnglishSource = umlSource
+  .replaceAll("제목:", "title:")
+  .replaceAll("등장인물:", "cast:")
+  .replaceAll("그림: 서버", "asset: server")
+  .replaceAll("그림: 클라이언트", "asset: client")
+  .replaceAll("이름표:", "label:")
+  .replaceAll("컷:", "panels:")
+  .replaceAll("인물:", "actors:")
+  .replaceAll("대사:", "dialogue:")
+  .replaceAll("화자:", "from:")
+  .replaceAll("상대:", "to:")
+  .replaceAll("내용:", "text:")
+  .replaceAll("다이어그램:", "diagram:")
+  .replaceAll("종류: 머메이드", "type: mermaid")
+  .replaceAll("원문:", "source:")
+  .replaceAll("높이:", "height:")
+  .replaceAll("구성: 이전", "mode: before");

@@ -1,7 +1,7 @@
 // 실제 저장/로그인 없이 SSR과 편집 화면에 동일한 고정 데이터를 제공한다.
 import { createServer } from "node:http";
 
-import { bilingualPost, post } from "./fixtures.mjs";
+import { bilingualPost, post, umlPost } from "./fixtures.mjs";
 
 createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "http://localhost:3007");
@@ -13,6 +13,8 @@ createServer((req, res) => {
     res.end(JSON.stringify(post));
   } else if (path === "/post/api/v1/posts/2" && req.method === "GET") {
     res.end(JSON.stringify(bilingualPost));
+  } else if (path === "/post/api/v1/posts/3" && req.method === "GET") {
+    res.end(JSON.stringify(umlPost));
   } else if (path === "/member/api/v1/auth/me") {
     res.end(
       JSON.stringify({

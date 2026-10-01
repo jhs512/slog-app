@@ -1,4 +1,3 @@
-import { mountComicCard } from "./comicViewer";
 import { escapeHtml } from "./markdownUtils";
 
 /** Toast UI의 코드 블록 AST를 사용하므로 중첩된 예제 펜스는 변환하지 않는다. */
@@ -31,11 +30,19 @@ export function observeComicBlocks(root: HTMLElement): () => void {
           !disposed && root.contains(block) && blocks.get(block) === cleanups;
         void (async () => {
           try {
-            const { renderComic } = await import("./vendor/comic-gen");
+            const [{ renderComicAsync }, { mountComicCard }] =
+              await Promise.all([
+                import("./vendor/comic-gen.render"),
+                import("./vendor/comic-gen.viewer"),
+              ]);
             await document.fonts.ready;
             if (!active()) return;
             // 기본 원본 배치를 유지하고 모바일에서도 컷을 재배열하지 않는다.
-            const result = renderComic(block.dataset.comicSource ?? "");
+            const result = await renderComicAsync(
+              block.dataset.comicSource ?? "",
+            );
+            // 블록 삭제·본문 교체·언마운트 뒤에 완료된 결과는 반영하지 않는다.
+            if (!active()) return;
             if (result.diagnostics.length)
               throw new Error(result.diagnostics.join("\n"));
             cleanups.push(mountComicCard(block, result));
