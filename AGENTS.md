@@ -90,7 +90,7 @@
 - 공식 뷰어 CDN·공유 로딩·재시도·시간 초과·블록 정리: `pnpm exec playwright test --config playwright.rendering.config.ts e2e/rendering/comic-cdn.spec.ts`
 - 읽어주기 엔진·발음·수식 검사: `pnpm test:speech`
 - 읽어주기 UI 전용: `pnpm exec playwright test --config playwright.rendering.config.ts e2e/rendering/speech.spec.ts`
-  (읽기 전용 fixture + 모의 음성; 실제 소리 출력과 구분, 사용법·출처: `docs/read-aloud.md`)
+  (전체 읽기·표/이미지 제외·PC/모바일; 읽기 전용 fixture + 모의 음성; 실제 소리 출력과 구분, 사용법·출처: `docs/read-aloud.md`)
 
 - 실행: `pnpm e2e` (헤드리스) / `pnpm e2e:ui` (UI 모드) / `pnpm exec playwright test e2e/<파일>.spec.ts`
 - 백엔드(e2e 프로필 :8091)와 프론트(:3001)를 **자동 기동**하고, 떠 있으면 재사용한다.

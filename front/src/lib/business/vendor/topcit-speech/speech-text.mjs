@@ -1,4 +1,4 @@
-export const excluded = 'nav,button,input,select,textarea,svg,script,style,pre,.comic-gen,.diagram-container,[role="button"],[data-speech-controls],[data-tts-exclude],.speech-notice,.sr-only,.selection-tag';
+export const excluded = 'nav,button,input,select,textarea,svg,script,style,pre,table,figure,img,.comic-gen,.diagram-container,[role="button"],[data-speech-controls],[data-tts-exclude],.speech-notice,.sr-only,.selection-tag';
 export function visible(element) {
   if (!element.isConnected || element.closest('[hidden],[aria-hidden="true"]')) return false;
   for (let details = element.closest('details'); details; details = details.parentElement?.closest('details')) {
@@ -43,11 +43,24 @@ export function mapSpeechText(element) {
   return { text: points.map(p => p.char).join(''), points, nodes: new Map(points.map(p => [p.node, p.node.data])) };
 }
 export const readableText = element => mapSpeechText(element).text;
+// Join visible text blocks in document order without merging adjacent sentences.
+export function mapSpeechDocument(root) {
+  const result = { text: '', points: [], nodes: new Map() };
+  for (const element of root.querySelectorAll('.tts-readable')) {
+    if (element.closest(excluded) || element.parentElement?.closest('.tts-readable')) continue;
+    const mapping = mapSpeechText(element);
+    if (!mapping.text) continue;
+    if (result.text) { result.text += '\n'; result.points.push(null); }
+    result.text += mapping.text; result.points.push(...mapping.points);
+    for (const [node, text] of mapping.nodes) result.nodes.set(node, text);
+  }
+  return result;
+}
 // Build utterance text separately so display text and highlight offsets stay exact.
 export function speechChunkText(mapping, start, end) {
   let result = '';
   for (let i = start; i < end;) {
-    const parent = mapping.points[i]?.node.parentElement;
+    const parent = mapping.points[i]?.node?.parentElement;
     const semantic = parent?.closest('[data-tts-text]') || parent?.closest('sup,sub,code');
     if (!semantic) { result += mapping.text[i++]; continue; }
     let stop = i + 1;
@@ -71,6 +84,7 @@ export function speechChunkText(mapping, start, end) {
 export function speechRanges(mapping, start, end) {
   const ranges = []; let range, previous;
   for (const point of mapping.points.slice(start, end)) {
+    if (!point) { range = undefined; previous = undefined; continue; }
     if (!range || point.node !== previous.node || point.offset !== previous.offset + 1) {
       range = document.createRange(); range.setStart(point.node, point.offset); ranges.push(range);
     }

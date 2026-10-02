@@ -1,5 +1,5 @@
 import { splitSpeechRanges, speechSentences, koreanVoice, StorySpeech, speechRates } from './speech-engine.mjs';
-import { excluded, visible, readableText, mapSpeechText, speechRanges, speechChunkText } from './speech-text.mjs';
+import { excluded, visible, readableText, mapSpeechText, mapSpeechDocument, speechRanges, speechChunkText } from './speech-text.mjs';
 import { createSpeechHighlight } from './speech-highlight.mjs';
 export { visible, readableText } from './speech-text.mjs';
 
@@ -19,11 +19,13 @@ export function mountSpeech(main) {
   if (content) content.before(notice); else main.append(notice);
   if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
     notice.hidden = false; notice.textContent = '이 브라우저는 읽어주기를 지원하지 않습니다.';
-    return () => { panel.remove(); notice.remove(); };
+    return Object.assign(() => { panel.remove(); notice.remove(); }, { readAll: () => { notice.hidden = false; } });
   }
   const synth = window.speechSynthesis, entries = new Map();
   const play = panel.querySelector('[data-action="play"]'), pause = panel.querySelector('[data-action="pause"]'), stop = panel.querySelector('[data-action="stop"]'), close = panel.querySelector('.speech-close');
-  let active, origin, spokenText, observer, mapping, chunks, sentences, shownSentence;
+  let active, origin, spokenText, observer, mapping, chunks, sentences, shownSentence, wholeDocument = false;
+  const currentText = () => wholeDocument ? mapSpeechDocument(main).text : active ? readableText(active) : '';
+  const validActive = () => active && active.isConnected && visible(active) && (wholeDocument || eligible(active)) && currentText() === spokenText;
   const context = panel.querySelector('.speech-context');
   const navigation = document.createElement('div'); navigation.className = 'speech-buttons speech-navigation';
   navigation.innerHTML = '<button type="button" data-direction="-1" disabled>이전 문장</button><button type="button" data-direction="1" disabled>다음 문장</button>';
@@ -62,13 +64,13 @@ export function mountSpeech(main) {
   controller.rate = savedRate;
   const dismiss = () => controller.stop();
   for (const button of navigation.querySelectorAll('button')) button.onclick = () => {
-    if (!active || !visible(active) || readableText(active) !== spokenText) { dismiss(); return; }
+    if (!validActive()) { dismiss(); return; }
     const target = (chunks[controller.index]?.sentenceIndex ?? 0) + Number(button.dataset.direction);
     const index = chunks.findIndex(chunk => chunk.sentenceIndex === target);
     if (index < 0) return;
     controller.cancel(); controller.index = index; controller.state = 'paused'; controller.start();
   };
-  play.onclick = () => { if (active && visible(active) && readableText(active) === spokenText) controller.start(); else dismiss(); };
+  play.onclick = () => { if (validActive()) controller.start(); else dismiss(); };
   pause.onclick = () => controller.pause(); stop.onclick = close.onclick = dismiss;
   panel.querySelector('select').onchange = event => {
     const rate = Number(event.target.value);
@@ -139,7 +141,7 @@ export function mountSpeech(main) {
           button.onclick = event => {
             event.preventDefault(); event.stopPropagation();
             const current = readableText(node); if (disposed || !eligible(node) || !current) return;
-            if (active !== node || current !== spokenText) { dismiss(); active?.classList.remove('speech-active'); active = node; spokenText = current; mapping = mapSpeechText(node); sentences = speechSentences(mapping.text); chunks = splitSpeechRanges(mapping.text); controller.chunks = chunks.map(chunk => speechChunkText(mapping, chunk.start, chunk.end)); }
+            if (wholeDocument || active !== node || current !== spokenText) { dismiss(); active?.classList.remove('speech-active'); wholeDocument = false; active = node; spokenText = current; mapping = mapSpeechText(node); sentences = speechSentences(mapping.text); chunks = splitSpeechRanges(mapping.text); controller.chunks = chunks.map(chunk => speechChunkText(mapping, chunk.start, chunk.end)); }
             origin = button; controller.start();
           };
         }
@@ -156,7 +158,7 @@ export function mountSpeech(main) {
     if (!scheduled) { scheduled = true; frame = requestAnimationFrame(() => { scheduled = false; const roots = [...dirty]; dirty.clear(); reconcile(roots); }); }
   }
   observer = new MutationObserver(records => {
-    if (active && (!active.isConnected || !eligible(active) || readableText(active) !== spokenText || [...(mapping?.nodes || [])].some(([node, text]) => !node.isConnected || node.data !== text))) { dismiss(); active?.classList.remove('speech-active'); active = null; }
+    if (active && (!validActive() || [...(mapping?.nodes || [])].some(([node, text]) => !node.isConnected || node.data !== text))) { dismiss(); active?.classList.remove('speech-active'); active = null; }
     for (const record of records) {
       const target = record.target.nodeType === 1 ? record.target : record.target.parentElement;
       if (target?.closest('[data-tts-exclude]')) { schedule(target.closest('[data-tts-exclude]')); continue; }
@@ -179,13 +181,25 @@ export function mountSpeech(main) {
   for (const event of ['site-route-change', 'popstate', 'pagehide']) addEventListener(event, dismiss, { signal: listeners.signal });
   addEventListener('resize', () => { if (active && !visible(active)) dismiss(); schedule(main); }, { signal: listeners.signal });
   document.addEventListener('visibilitychange', () => { if (document.hidden) dismiss(); }, { signal: listeners.signal });
-  return () => {
+  const cleanup = () => {
     if (disposed) return;
     disposed = true;
     observer.disconnect(); cancelAnimationFrame(frame); dirty.clear(); listeners.abort();
     controller.stop(); highlight.dispose();
     for (const node of [...entries.keys()]) remove(node);
+    active?.classList.remove('speech-active');
     active = origin = null;
     panel.remove(); notice.remove();
   };
+  return Object.assign(cleanup, { readAll: trigger => {
+    if (disposed) return;
+    dismiss(); active?.classList.remove('speech-active');
+    reconcile([main]);
+    const nextMapping = mapSpeechDocument(main);
+    if (!nextMapping.text) { notice.hidden = false; notice.textContent = '읽을 본문이 없습니다.'; return; }
+    wholeDocument = true; active = main; origin = trigger; mapping = nextMapping; spokenText = mapping.text;
+    sentences = speechSentences(mapping.text); chunks = splitSpeechRanges(mapping.text);
+    controller.chunks = chunks.map(chunk => speechChunkText(mapping, chunk.start, chunk.end));
+    controller.start();
+  } });
 }

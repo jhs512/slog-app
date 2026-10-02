@@ -63,6 +63,76 @@ async function mockSpeech(
 }
 
 for (const width of [1440, 390]) {
+  test(`본문 전체 읽기 ${width}px: 켜기 후 버튼·처음부터 끝까지·표/이미지 제외`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await mockSpeech(page);
+    await page.goto("/p/4");
+    const readAll = page.getByRole("button", {
+      name: "처음부터 끝까지 읽기",
+      exact: true,
+    });
+    await expect(readAll).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "읽어주기 켜기", exact: true })
+      .click();
+    await expect(readAll).toBeEnabled();
+    expect(await page.evaluate(() => window.__speechMock.spoken.length)).toBe(
+      0,
+    );
+    await expect(page.locator("table .block-speech-button")).toHaveCount(0);
+    await readAll.click();
+    await expect(page.locator(".speech-controls")).toHaveAttribute(
+      "data-state",
+      "speaking",
+    );
+    await page.getByRole("button", { name: "일시정지", exact: true }).click();
+    await expect(page.locator(".speech-controls")).toHaveAttribute(
+      "data-state",
+      "paused",
+    );
+    await page.getByRole("button", { name: "이어읽기", exact: true }).click();
+    const text = await page.evaluate(() => {
+      window.__speechMock.spoken.splice(
+        0,
+        window.__speechMock.spoken.length - 1,
+      );
+      for (let i = 0; i < 100; i++) {
+        const count = window.__speechMock.spoken.length;
+        window.__speechMock.spoken.at(-1)?.onend?.();
+        if (window.__speechMock.spoken.length === count) break;
+      }
+      return window.__speechMock.spoken
+        .map((utterance) => utterance.text)
+        .join(" ");
+    });
+    expect(text).toContain("읽기 제목");
+    expect(text).toContain("첫 문장입니다.");
+    expect(text).toContain("마지막 문장입니다.");
+    expect(text).toContain("곱하기");
+    expect(text).toContain("본문 끝 문장입니다.");
+    expect(text).not.toMatch(
+      /표의 내용|접힌|숨겨진|보조 UI|console|만화 읽기|이미지 설명/,
+    );
+    await expect(page.locator(".speech-controls")).toHaveAttribute(
+      "data-state",
+      "ended",
+    );
+    await readAll.click();
+    expect(
+      await page.evaluate(() => window.__speechMock.spoken.at(-1)?.text),
+    ).toContain("읽기 제목");
+    await page.getByRole("button", { name: "정지", exact: true }).click();
+    await page
+      .getByRole("button", { name: "읽어주기 끄기", exact: true })
+      .click();
+    await expect(readAll).toHaveCount(0);
+    await expect(page.locator(".speech-controls,.speech-active")).toHaveCount(
+      0,
+    );
+  });
+
   test(`읽어주기 ${width}px: 재생·문장 이동·강조·속도·일시정지·정리`, async ({
     page,
   }) => {

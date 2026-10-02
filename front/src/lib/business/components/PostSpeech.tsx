@@ -2,11 +2,13 @@
 
 import "../vendor/topcit-speech/speech.css";
 
-import { type RefObject, useEffect, useState } from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
 import { Volume2 } from "lucide-react";
+
+import type { SpeechSession } from "../vendor/topcit-speech/speech.mjs";
 
 export default function PostSpeech({
   contentRoot,
@@ -15,6 +17,8 @@ export default function PostSpeech({
 }) {
   const [enabled, setEnabled] = useState(false);
   const [error, setError] = useState("");
+  const session = useRef<SpeechSession | null>(null);
+  const [ready, setReady] = useState(false);
   useEffect(() => {
     if (!enabled || !contentRoot.current) return;
     const root = contentRoot.current;
@@ -22,7 +26,12 @@ export default function PostSpeech({
     let cleanup: (() => void) | undefined;
     void import("../postSpeech")
       .then(({ mountPostSpeech }) => {
-        if (!disposed) cleanup = mountPostSpeech(root);
+        if (!disposed) {
+          session.current = mountPostSpeech(root, () => {
+            if (!disposed) setReady(true);
+          });
+          cleanup = session.current;
+        }
       })
       .catch(() => {
         if (!disposed)
@@ -31,6 +40,7 @@ export default function PostSpeech({
     return () => {
       disposed = true;
       cleanup?.();
+      session.current = null;
     };
   }, [enabled, contentRoot]);
 
@@ -42,15 +52,25 @@ export default function PostSpeech({
         aria-pressed={enabled}
         onClick={() => {
           setError("");
+          setReady(false);
           setEnabled(!enabled);
         }}
       >
         <Volume2 className="h-4 w-4" />
         {enabled ? "읽어주기 끄기" : "읽어주기 켜기"}
       </Button>
+      {enabled && (
+        <Button
+          size="sm"
+          disabled={!ready}
+          onClick={(event) => session.current?.readAll(event.currentTarget)}
+        >
+          처음부터 끝까지 읽기
+        </Button>
+      )}
       <span className="text-xs text-muted-foreground">
         {enabled
-          ? "본문 옆의 재생 버튼을 누르세요."
+          ? "표·이미지를 건너뛰고 본문을 읽습니다."
           : "기기의 한국어 음성으로 읽습니다."}
       </span>
       {error && <p role="alert">{error}</p>}

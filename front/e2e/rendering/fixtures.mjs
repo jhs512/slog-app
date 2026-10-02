@@ -118,6 +118,8 @@ export const speechPost = {
     "<span hidden>숨겨진 정보</span>",
     '<span aria-hidden="true">보조 UI 정보</span>',
     "| 항목 | 설명 |\n| --- | --- |\n| 한국어 | 표의 내용을 읽습니다. |",
+    '<figure><img alt="이미지 설명" src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221%22 height=%221%22/%3E"><figcaption>이미지 설명 캡션</figcaption></figure>',
+    "본문 끝 문장입니다.",
   ].join("\n\n"),
 };
 
