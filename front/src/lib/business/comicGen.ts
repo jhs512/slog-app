@@ -54,7 +54,12 @@ export function observeComicBlocks(root: HTMLElement): () => void {
             if (!active()) return;
             if (result.diagnostics.length)
               throw new Error(result.diagnostics.join("\n"));
-            cleanups.push(mountComicCard(block, result));
+            cleanups.push(
+              mountComicCard(block, result, {
+                closeOnBackdrop: true,
+                closeOnEmptyArea: true,
+              }),
+            );
             block.dataset.comicState = "ready";
           } catch (error) {
             if (!active()) return;

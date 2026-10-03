@@ -1,7 +1,7 @@
 type ViewerSDK = typeof import("./vendor/comic-gen.viewer");
 
 export const COMIC_VIEWER_CDN =
-  "https://cdn.jsdelivr.net/gh/jhs512/comic-gen@v0.5.0/cdn/comic-gen.viewer.js";
+  "https://cdn.jsdelivr.net/gh/jhs512/comic-gen@v0.7.1/cdn/comic-gen.viewer.js";
 
 let pending: Promise<ViewerSDK> | undefined;
 let attempt = 0;

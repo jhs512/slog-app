@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import { fence, source } from "./fixtures.mjs";
 
 const viewerURL =
-  "https://cdn.jsdelivr.net/gh/jhs512/comic-gen@v0.5.0/cdn/comic-gen.viewer.js";
+  "https://cdn.jsdelivr.net/gh/jhs512/comic-gen@v0.7.1/cdn/comic-gen.viewer.js";
 
 test("공식 CDN: 여러 블록은 요청 하나를 공유하고 CSP 아래에서 동작한다", async ({
   page,
@@ -129,3 +129,56 @@ test("CDN 시간 초과: 영구 로딩 대신 재시도를 제공하고 늦은 �
   await expect(page.locator(".comic-card")).toHaveCount(1);
   expect(requests).toBe(2);
 });
+
+for (const width of [1440, 390]) {
+  test(`닫기 ${width}px: 내부 클릭 유지·Escape·배경 클릭·초점 복원`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/p/1");
+    const card = page.locator(".comic-card").first();
+    await card.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await dialog.locator("h2").click();
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(card).toBeFocused();
+    await card.click();
+    await expect(dialog).toBeVisible();
+    const region = dialog.getByRole("region", { name: "만화 읽기 영역" });
+    const area = await region.boundingBox();
+    const image = await region.locator("img").boundingBox();
+    expect(image!.x).toBeGreaterThan(area!.x + 2);
+    await page.mouse.click(image!.x + image!.width / 2, image!.y + 80);
+    await expect(dialog).toBeVisible();
+    await page.mouse.move(image!.x + 30, image!.y + 80);
+    await page.mouse.down();
+    await page.mouse.move(area!.x + 2, area!.y + 100);
+    await page.mouse.up();
+    await expect(dialog).toBeVisible();
+    await page.mouse.click(area!.x + 2, area!.y + 100);
+    await expect(dialog).toBeHidden();
+    await expect(card).toBeFocused();
+    if (width > 1000) {
+      for (const x of [2, width - 2]) {
+        await card.click();
+        await expect(dialog).toBeVisible();
+        const box = await dialog.boundingBox();
+        expect(x < box!.x || x > box!.x + box!.width).toBe(true);
+        await page.mouse.click(x, 422);
+        await expect(dialog).toBeHidden();
+        await expect(card).toBeFocused();
+      }
+      await card.click();
+      const box = await dialog.boundingBox();
+      await page.mouse.move(box!.x + 50, box!.y + 50);
+      await page.mouse.down();
+      await page.mouse.move(2, 422);
+      await page.mouse.up();
+      await expect(dialog).toBeVisible();
+    }
+    await page.screenshot({ path: `test-results/comic-dismiss-${width}.png` });
+  });
+}
