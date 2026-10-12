@@ -26,8 +26,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
+  adsEnabled = false,
 }: Readonly<{
   children: React.ReactNode;
+  adsEnabled?: boolean;
 }>) {
   return (
     <html lang="ko" suppressHydrationWarning>
@@ -56,7 +58,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               <script> 는 런타임에 주입한다. 애드센스 소유권 확인 크롤러가 그것을
               못 볼 수 있어, React가 head로 끌어올리는 평범한 async 스크립트를 쓴다.
             */}
-            {ADSENSE_CLIENT_ID && (
+            {adsEnabled && ADSENSE_CLIENT_ID && (
               <script
                 async
                 crossOrigin="anonymous"

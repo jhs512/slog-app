@@ -9,7 +9,14 @@ createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Headers", "content-type");
   res.setHeader("Content-Type", "application/json");
   const path = new URL(req.url, "http://localhost:8097").pathname;
-  if (path === "/post/api/v1/posts/1" && req.method === "GET") {
+  if (path === "/post/api/v1/posts" && req.method === "GET") {
+    res.end(
+      JSON.stringify({
+        content: [speechPost],
+        pageable: { totalPages: 1, totalElements: 1 },
+      }),
+    );
+  } else if (path === "/post/api/v1/posts/1" && req.method === "GET") {
     res.end(JSON.stringify(post));
   } else if (path === "/post/api/v1/posts/2" && req.method === "GET") {
     res.end(JSON.stringify(bilingualPost));

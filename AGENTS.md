@@ -81,9 +81,12 @@
 - 타입체크: `pnpm tsc`
 - 전체 점검: `pnpm check` (format → tsc → lint)
 - API 대상 변경: `NEXT_PUBLIC_API_BASE_URL=http://localhost:8081 pnpm dev`
+- 운영 배포: main 푸시 시 Vercel이 프론트엔드를 자동 배포한다. 커밋 배포 확인: `gh api repos/jhs512/slog-app/commits/<SHA>/status` (`Vercel` 상태와 배포 URL 확인).
 
 ## E2E (Playwright) — `front/`
 
+- 홈 전용 광고 검증: 테스트용 환경 변수(`NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8097`, `NEXT_PUBLIC_ADSENSE_CLIENT_ID=ca-pub-0000000000000000`, `NEXT_PUBLIC_ADSENSE_SLOT_MAIN=1234567890`)로 `pnpm build` 후 `pnpm exec playwright test --config playwright.ads.config.ts`.
+  (운영 빌드 + 읽기 전용 fixture, 광고 서버는 모의 응답; 상세 직접 진입·홈/상세 링크·뒤로/앞으로·PC/모바일 검증. 개발 모드에서는 실제 광고 코드가 실행되지 않으므로 운영 빌드 필요.)
 - 만화 렌더링 전용: `pnpm exec playwright test --config playwright.rendering.config.ts`
   (Docker 없이 읽기 전용 fixture API :8097 + front :3007, 운영 글 변경 없음; 한글/영어 동등 출력·Mermaid UML·비동기 취소/오류·미리보기·PC/모바일 카드·뷰어·한 컷 맞춤(1~30컷)·이전/다음 이동·확대·키보드 검증)
 - Markdown `comic-gen` 작성법·SDK 버전: `docs/comic-gen.md`
