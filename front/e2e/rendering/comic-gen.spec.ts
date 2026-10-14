@@ -1,4 +1,6 @@
 import { type Locator, expect, test } from "@playwright/test";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 
 import { convertCodeBlocksToDiagramSyntax } from "../../src/lib/business/markdownUtils";
 import { fence, koreanSource, source } from "./fixtures.mjs";
@@ -85,7 +87,24 @@ test("다이어그램 전처리가 만화 대사·바깥 예제 펜스를 변형
 });
 
 test("SDK 로딩 실패가 다른 문단을 깨뜨리지 않는다", async ({ page }) => {
-  await page.route("**/*vendor_comic-gen*", (route) => route.abort());
+  let sdkPattern = "**/*vendor_comic-gen*";
+  if (process.env.PLAYWRIGHT_RENDERING_PRODUCTION === "1") {
+    // 운영 빌드는 청크 이름을 해시로 바꾸므로 실제 SDK 청크를 찾는다.
+    const chunks = join(process.cwd(), ".next/static/chunks");
+    const sdkChunk = readdirSync(chunks).find(
+      (name) =>
+        name.endsWith(".js") &&
+        readFileSync(join(chunks, name), "utf8").includes(
+          "Mermaid 원문 안의 설정 지시문",
+        ),
+    );
+    expect(
+      sdkChunk,
+      "운영 빌드에 독립된 만화 SDK 청크가 있어야 한다",
+    ).toBeDefined();
+    sdkPattern = `**/_next/static/chunks/${sdkChunk}`;
+  }
+  await page.route(sdkPattern, (route) => route.abort());
   await page.goto("/p/1");
   await expect(
     page.locator(".comic-gen").first().getByRole("alert"),

@@ -32,6 +32,9 @@ export default function WideHeaderContent({
         </Link>
       </Button>
       {isLogin && <PostWriteButton text />}
+      <Button variant="link" asChild>
+        <Link href="/marp">Marp</Link>
+      </Button>
       {isLogin && (
         <Button variant="link" asChild>
           <Link href="/p/mine">

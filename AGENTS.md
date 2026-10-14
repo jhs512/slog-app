@@ -85,6 +85,7 @@
 
 ## E2E (Playwright) — `front/`
 
+- Marp·기존 PPT 회귀 검증: `pnpm exec playwright test --config playwright.rendering.config.ts e2e/rendering/marp.spec.ts` (Docker 없이 읽기 전용 fixture, 저장은 모의 요청; PC/모바일·테마·이미지·코드·에디터·해시 이동 검사). 작성법·지원 범위: `docs/marp.md`.
 - 홈 전용 광고 검증: 테스트용 환경 변수(`NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8097`, `NEXT_PUBLIC_ADSENSE_CLIENT_ID=ca-pub-0000000000000000`, `NEXT_PUBLIC_ADSENSE_SLOT_MAIN=1234567890`)로 `pnpm build` 후 `pnpm exec playwright test --config playwright.ads.config.ts`.
   (운영 빌드 + 읽기 전용 fixture, 광고 서버는 모의 응답; 상세 직접 진입·홈/상세 링크·뒤로/앞으로·PC/모바일 검증. 개발 모드에서는 실제 광고 코드가 실행되지 않으므로 운영 빌드 필요.)
 - 만화 렌더링 전용: `pnpm exec playwright test --config playwright.rendering.config.ts`

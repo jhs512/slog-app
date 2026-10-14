@@ -26,6 +26,12 @@ Post `content` 안에 임베드된 슬라이드 덱. `<details ppt-id="...">` �
 - **슬라이드(Slide)** — PPT 마크다운을 `\n---\n` 구분자로 나눈 한 조각. URL 해시에서 1-index (`#1` = 첫 슬라이드).
 - `/p/{id}/ppt/{pptId}` 가 해당 PPT를 슬라이드 단위로 **렌더링**한다.
 
+## Marp 덱
+
+Marp 문법으로 작성된 슬라이드 문서. 글 전체가 하나의 Marp 덱이거나, 일반 글 안에 여러 Marp 덱과 기존 PPT를 함께 담을 수 있다. 기존 PPT와는 독립된 발표 형식이다.
+
+- **marp-id** — 한 글 안에서 삽입된 Marp 덱을 식별하는 문자열.
+
 ## Raw 아티팩트 (Raw Artifact)
 
 Post `content` 안에 임베드된, 그대로 꺼내 쓸 수 있는 단일 원본 파일. `<details raw-id="...">` 블록 하나가 하나의 Raw 아티팩트이며, 블록 안 **첫 fenced code block**이 그 페이로드다 (예: Postman Collection JSON).

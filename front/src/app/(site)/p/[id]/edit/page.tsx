@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import MarkdownPreview from "@/lib/business/components/MarkdownPreview";
+import { appendMarpTemplate, isMarpDocument } from "@/lib/business/marpSource";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -332,6 +333,21 @@ export default withLogin(function Page({
                   </FormItem>
                 )}
               />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  form.setValue(
+                    "content",
+                    appendMarpTemplate(form.getValues("content")),
+                    { shouldDirty: true },
+                  )
+                }
+              >
+                {isMarpDocument(form.watch("content"))
+                  ? "슬라이드 추가"
+                  : "Marp 추가"}
+              </Button>
               <MarkdownPreview content={form.watch("content")} postId={id} />
             </form>
           </Form>

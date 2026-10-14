@@ -9,6 +9,7 @@ import { useAuthContext } from "@/global/auth/hooks/useAuth";
 
 import PostSpeech from "@/lib/business/components/PostSpeech";
 import ToastUIEditorViewer from "@/lib/business/components/ToastUIEditorViewer";
+import { getMarpDecks } from "@/lib/business/marpSource";
 import { formatDate } from "@/lib/utils";
 
 import {
@@ -223,6 +224,14 @@ export default function PostInfo({
             <Link href={`/p/${post.id}/ppt`}>
               <Presentation className="w-4 h-4" />
               PPT 보기
+            </Link>
+          </Button>
+        )}
+        {getMarpDecks(post.content).length > 0 && (
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/p/${post.id}/marp`}>
+              <Presentation className="w-4 h-4" />
+              Marp 보기
             </Link>
           </Button>
         )}

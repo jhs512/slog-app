@@ -79,6 +79,17 @@ export default function NarrowHeaderContent({
                   </DrawerClose>
                 </li>
               )}
+              <li>
+                <DrawerClose asChild>
+                  <Button
+                    variant="link"
+                    className="w-full justify-start"
+                    asChild
+                  >
+                    <Link href="/marp">Marp 만들기</Link>
+                  </Button>
+                </DrawerClose>
+              </li>
               {isLogin && (
                 <li>
                   <DrawerClose asChild>

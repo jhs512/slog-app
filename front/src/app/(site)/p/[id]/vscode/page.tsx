@@ -14,76 +14,14 @@ import { toast } from "sonner";
 import HeaderActionSlot from "@/lib/business/components/HeaderActionSlot";
 import MarkdownPreview from "@/lib/business/components/MarkdownPreview";
 import MonacoEditor from "@/lib/business/components/MonacoEditor";
+import {
+  parsePostEditorContent,
+  withPostEditorConfig,
+} from "@/lib/business/postEditorConfig";
 
 import { Button } from "@/components/ui/button";
 
 import { ArrowLeft, Save } from "lucide-react";
-
-interface Config {
-  title?: string;
-  published?: boolean;
-  listed?: boolean;
-  [key: string]: string | boolean | undefined;
-}
-
-function parseConfig(content: string): {
-  title: string;
-  published: boolean;
-  listed: boolean;
-  content: string;
-} {
-  let configSection = "";
-  let mainContent = content;
-
-  // 1. $$config 확인
-  if (content.startsWith("$$config")) {
-    const configEndIndex = content.indexOf("$$", 2);
-    if (configEndIndex !== -1) {
-      configSection = content.substring(8, configEndIndex);
-      // 기존 로직 유지: $$ 뒤의 4글자(아마도 \n\n)를 건너뜀
-      mainContent = content.substring(configEndIndex + 4);
-    }
-  }
-  // 2. ```yml 확인
-  else if (content.startsWith("```yml")) {
-    const configEndIndex = content.indexOf("```", 6);
-    if (configEndIndex !== -1) {
-      configSection = content.substring(6, configEndIndex);
-      // ``` 뒤의 내용으로 본문 설정 (줄바꿈 처리)
-      mainContent = content.substring(configEndIndex + 3);
-    }
-  }
-
-  // config 섹션이 없는 경우
-  if (!configSection) {
-    return {
-      title: "",
-      published: false,
-      listed: false,
-      content: content.trim(),
-    };
-  }
-
-  // config 파싱
-  const configLines = configSection.split("\n");
-  const config: Config = {};
-
-  configLines.forEach((line) => {
-    const [key, value] = line.split(": ").map((s) => s.trim());
-    if (key === "published" || key === "listed") {
-      config[key] = value === "true";
-    } else {
-      config[key] = value;
-    }
-  });
-
-  return {
-    title: config.title?.trim() || "",
-    published: config.published || false,
-    listed: config.listed || false,
-    content: mainContent.trim(),
-  };
-}
 
 export default withLogin(function Page({
   params,
@@ -108,13 +46,7 @@ export default withLogin(function Page({
   useEffect(() => {
     if (post) {
       if (isFirstLoad.current) {
-        const content = `\`\`\`yml
-title: ${post.title}
-published: ${post.published}
-listed: ${post.listed}
-\`\`\`
-
-${post.content || ""}`.trim();
+        const content = withPostEditorConfig(post, post.content || "");
         setInitialContent(content);
         contentRef.current = content;
         setPreviewContent(post.content || "");
@@ -125,7 +57,7 @@ ${post.content || ""}`.trim();
 
   const handleEditorChange = (value: string) => {
     contentRef.current = value;
-    setPreviewContent(parseConfig(value).content);
+    setPreviewContent(parsePostEditorContent(value, post ?? undefined).content);
   };
 
   const savePostRef = useRef<((value: string) => void) | null>(null);
@@ -149,7 +81,10 @@ ${post.content || ""}`.trim();
         return;
       }
 
-      const { title, published, listed, content } = parseConfig(value.trim());
+      const { title, published, listed, content } = parsePostEditorContent(
+        value.trim(),
+        post,
+      );
 
       const response = await client.PUT("/post/api/v1/posts/{id}", {
         params: {

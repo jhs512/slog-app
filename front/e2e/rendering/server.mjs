@@ -2,6 +2,7 @@
 import { createServer } from "node:http";
 
 import { bilingualPost, post, speechPost, umlPost } from "./fixtures.mjs";
+import { fencedMarpPost, marpPost, mixedPost } from "./marp-fixtures.mjs";
 
 createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "http://localhost:3007");
@@ -24,6 +25,12 @@ createServer((req, res) => {
     res.end(JSON.stringify(umlPost));
   } else if (path === "/post/api/v1/posts/4" && req.method === "GET") {
     res.end(JSON.stringify(speechPost));
+  } else if (path === "/post/api/v1/posts/5" && req.method === "GET") {
+    res.end(JSON.stringify(marpPost));
+  } else if (path === "/post/api/v1/posts/6" && req.method === "GET") {
+    res.end(JSON.stringify(mixedPost));
+  } else if (path === "/post/api/v1/posts/7" && req.method === "GET") {
+    res.end(JSON.stringify(fencedMarpPost));
   } else if (path === "/member/api/v1/auth/me") {
     res.end(
       JSON.stringify({

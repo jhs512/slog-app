@@ -14,7 +14,10 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
-      command: "pnpm dev --webpack --port 3007",
+      command:
+        process.env.PLAYWRIGHT_RENDERING_PRODUCTION === "1"
+          ? "pnpm start --port 3007"
+          : "pnpm dev --webpack --port 3007",
       url: "http://localhost:3007",
       reuseExistingServer: false,
       timeout: 120_000,
