@@ -77,6 +77,8 @@ export default function CodeLabDialog({
   const available = ENGINE_PANELS[lab.engine];
   const [code, setCode] = useState(source);
   const [input, setInput] = useState("");
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [mac, setMac] = useState(false);
   const [settings, setSettings] = useState<WorkspaceSettings>(() =>
     loadSettings(lab.engine),
   );
@@ -153,6 +155,7 @@ export default function CodeLabDialog({
   }, []);
 
   useEffect(() => {
+    setMac(/Mac|iPhone|iPad|iPod/.test(navigator.platform));
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     dialogRef.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
@@ -323,10 +326,40 @@ export default function CodeLabDialog({
         aria-labelledby="code-lab-title"
         data-testid="code-lab-dialog"
         className="flex h-full w-full max-w-[1600px] flex-col rounded-lg border border-border bg-background text-foreground shadow-xl"
+        onKeyDownCapture={(event) => {
+          if (event.nativeEvent.isComposing || event.repeat) return;
+          const modifier = mac
+            ? event.metaKey && !event.ctrlKey
+            : event.ctrlKey && !event.metaKey;
+          if (!modifier || event.altKey) return;
+          if (event.key === "Enter") {
+            event.preventDefault();
+            event.stopPropagation();
+            if (event.shiftKey) stop();
+            else run(code, input);
+          } else if (event.shiftKey && /^Digit[1-7]$/.test(event.code)) {
+            const ids: PanelId[] = [
+              "code",
+              "render",
+              "dom",
+              "vdom",
+              "memory",
+              "console",
+              "input",
+            ];
+            const id = ids[Number(event.code.slice(-1)) - 1];
+            if (available.includes(id)) {
+              event.preventDefault();
+              event.stopPropagation();
+              togglePanel(id);
+            }
+          }
+        }}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             event.stopPropagation();
-            onClose();
+            if (showShortcuts) setShowShortcuts(false);
+            else onClose();
             return;
           }
           if (event.key !== "Tab") return;
@@ -356,6 +389,7 @@ export default function CodeLabDialog({
             data-autofocus
             onClick={() => run(code, input)}
             data-testid="code-lab-run"
+            title={`실행 (${mac ? "⌘" : "Ctrl +"} Enter)`}
           >
             ▶ 실행
           </button>
@@ -416,6 +450,17 @@ export default function CodeLabDialog({
           </label>
           <button
             type="button"
+            className="code-lab-tool rounded-full"
+            aria-label="단축키 안내"
+            aria-expanded={showShortcuts}
+            aria-controls="code-lab-shortcuts"
+            onClick={() => setShowShortcuts(!showShortcuts)}
+            title="단축키 안내"
+          >
+            ⓘ
+          </button>
+          <button
+            type="button"
             className="code-lab-action"
             onClick={onClose}
             aria-label="코드 실험 닫기"
@@ -424,6 +469,44 @@ export default function CodeLabDialog({
             닫기
           </button>
         </div>
+        {showShortcuts && (
+          <section
+            id="code-lab-shortcuts"
+            aria-label="단축키 안내"
+            className="border-b border-border p-3 text-xs"
+          >
+            <h3 className="mb-2 font-semibold">
+              단축키 · {mac ? "macOS" : "Windows / Linux"}
+            </h3>
+            <ul className="flex flex-wrap gap-x-6 gap-y-2">
+              <li>{mac ? "⌘" : "Ctrl +"} Enter · 실행</li>
+              <li>{mac ? "⌘ ⇧" : "Ctrl + Shift +"} Enter · 중지</li>
+              {(
+                [
+                  "code",
+                  "render",
+                  "dom",
+                  "vdom",
+                  "memory",
+                  "console",
+                  "input",
+                ] satisfies PanelId[]
+              ).map((id, index) =>
+                available.includes(id) ? (
+                  <li key={id}>
+                    {mac ? "⌘ ⇧" : "Ctrl + Shift +"} {index + 1} ·{" "}
+                    {PANEL_LABELS[id]} 열기 / 닫기
+                  </li>
+                ) : null,
+              )}
+              <li>Esc · 안내 닫기 / 코드 실험 닫기</li>
+            </ul>
+            <p className="mt-2 text-muted-foreground">
+              코드 실험 창에 초점이 있을 때 사용합니다. 렌더링 결과나 시각화
+              안쪽에서는 상단 버튼으로 초점을 옮겨 사용하세요.
+            </p>
+          </section>
+        )}
         <div ref={bodyRef} className="relative flex min-h-0 flex-1 p-2">
           {layout}
           <div ref={frameHostRef} aria-hidden={!renderVisible} />

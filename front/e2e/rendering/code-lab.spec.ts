@@ -18,6 +18,42 @@ const frame = (page: Page) =>
 const consoleOf = (page: Page) => page.getByTestId("code-lab-console");
 const status = (page: Page) => page.getByTestId("code-lab-status");
 
+for (const platform of ["MacIntel", "Win32"]) {
+  test(`운영체제별 단축키 실행과 패널 안내 ${platform}`, async ({ page }) => {
+    await page.addInitScript((value) => {
+      Object.defineProperty(navigator, "platform", { get: () => value });
+    }, platform);
+    await page.reload();
+    await openLab(page, 'getElementById("inc")');
+    await expect(status(page)).toHaveText("완료");
+    await page
+      .getByRole("button", { name: "단축키 안내", exact: true })
+      .click();
+    const help = page.getByRole("region", { name: "단축키 안내" });
+    await expect(help).toContainText(
+      platform === "MacIntel" ? "macOS" : "Windows / Linux",
+    );
+    await expect(help).not.toContainText("메모리 열기");
+    const editor = page.getByTestId("code-lab-editor");
+    await editor.fill('<p id="shortcut-result">단축키 실행</p>');
+    await editor.press(
+      platform === "MacIntel" ? "Meta+Enter" : "Control+Enter",
+    );
+    await expect(frame(page).locator("#shortcut-result")).toHaveText(
+      "단축키 실행",
+    );
+    const dom = page.locator('[data-panel="dom"]');
+    const before = await dom.count();
+    await editor.press(
+      platform === "MacIntel" ? "Meta+Shift+Digit3" : "Control+Shift+Digit3",
+    );
+    await expect(dom).toHaveCount(before ? 0 : 1);
+    await editor.press("Escape");
+    await expect(help).toHaveCount(0);
+    await expect(page.getByTestId("code-lab-dialog")).toBeVisible();
+  });
+}
+
 async function replaceCode(page: Page, code: string) {
   await page.getByTestId("code-lab-editor").fill(code);
 }
