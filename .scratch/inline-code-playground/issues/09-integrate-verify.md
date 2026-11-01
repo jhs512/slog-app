@@ -15,3 +15,4 @@
 ## Comments
 
 - 2026-11-01 Claude: 코드 실험 e2e 12건(dev·운영 빌드), 전체 렌더링 회귀(Marp 1건은 dev 첫 컴파일 지연으로 단독 재실행 통과), tsc·eslint·prettier·test:speech 61건 통과. Standards·Spec 두 축 리뷰 후 지적 반영 커밋. 07·08은 결정 대기로 남김. PR 없이 main에 통합.
+- 2026-11-01 Claude (C·C++ 재사용 통합): main 110a877 Vercel 배포 성공. 운영 테스트 글 14927(공개·목록 미노출, 기존 글 변경 없음)에서 별도 headless Chromium으로 실제 팝업을 검증했다. C 연결 리스트 `10 20 30`·malloc 3/free 3, C 선입력 4 → `n=4 last=9`·malloc 1/free 1(선입력 없으면 원본과 같은 EOF 오류), C++ 첫 실행 5.9초(컴파일러 다운로드 포함) `15 14`, 선입력 5 → `11 10`·해제 표시, HTML 클릭, 닫기 확인. 코드가 담긴 요청 0건. 증거 `../evidence/production.json`, `prod-c-struct.png`, `prod-cpp.png`. 로컬은 code-lab e2e 14건(dev·운영 빌드), 전체 렌더링 회귀 57건, tsc·eslint 통과. 독립 리뷰(복사본 19개 바이트 동일 확인) 지적은 110a877에서 반영.

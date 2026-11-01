@@ -1,0 +1,55 @@
+{
+  "url": "https://www.slog.gg/p/14927",
+  "at": "2026-11-01T12:19:41.203Z",
+  "checks": {
+    "playButtons": 4,
+    "cStruct": {
+      "status": "완료",
+      "ms": 523,
+      "console": "C 인터프리터를 준비합니다.10\n20\n30\n정상 종료 · 39단계",
+      "memorySummary": "malloc 3 · free 3 · 미해제 0 (0 bytes)"
+    },
+    "cInputInitial": {
+      "status": "오류 · 예외로 종료",
+      "ms": 253,
+      "console": "C 인터프리터를 준비합니다.6:3 Memory overflow예외로 종료 · 2단계"
+    },
+    "cInput": {
+      "status": "완료",
+      "ms": 1,
+      "console": "C 인터프리터를 준비합니다.n=4 last=9\n정상 종료 · 9단계",
+      "memorySummary": "malloc 1 · free 1 · 미해제 0 (0 bytes)"
+    },
+    "cppFirst": {
+      "status": "완료",
+      "ms": 5905,
+      "console": "C++ 컴파일러(Clang/WASM)를 준비합니다. 처음 실행할 때 약 30MB를 내려받습니다.15 14\n정상 종료 · 11단계"
+    },
+    "cppInput": {
+      "status": "완료",
+      "ms": 4178,
+      "console": "C++ 컴파일러(Clang/WASM)를 준비합니다. 처음 실행할 때 약 30MB를 내려받습니다.11 10\n정상 종료 · 11단계"
+    },
+    "cppFreedShown": true,
+    "dialogClosed": true,
+    "html": "1회",
+    "compilerAssets": [
+      "clang.js",
+      "lld.js",
+      "clang.wasm.gz",
+      "lld.wasm.gz",
+      "sysroot.tar.gz",
+      "clang.js",
+      "lld.js",
+      "clang.wasm.gz",
+      "lld.wasm.gz",
+      "sysroot.tar.gz"
+    ],
+    "nonSlogRequests": [
+      "https://www.googletagmanager.com",
+      "https://img1.kakaocdn.net"
+    ],
+    "requestsWithSource": []
+  },
+  "totalMs": 18530
+}
