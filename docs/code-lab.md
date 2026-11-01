@@ -56,7 +56,12 @@ export default function App() {
 | `react-tailwind-starter-1` | 위와 같음 + Tailwind CSS 4 브라우저 런타임 | 위와 같음 | 위와 같음 |
 | `c run` | 호스트 Worker의 c-it 인터프리터 | c-it 컴파일러(바이트코드) → VM 해석 실행 | 코드·메모리·콘솔·입력 |
 
-Java·C++·Rust·Go는 지원하지 않는다. 판단 근거는 `.scratch/inline-code-playground/runtime-proofs.md`에 있다.
+Java·C++·Rust·Go는 아직 재생 버튼을 주지 않는다(`run`을 붙이면 안내 문구만 나온다). 실측 근거는 `.scratch/inline-code-playground/runtime-proofs.md`에 있다.
+
+- C++: wasm-clang(clang 8, Apache-2.0)으로 브라우저 소스 컴파일·선입력 실행을 확인했다. 자산이 60MB(gzip 약 19MB)이고 `std::sort` 링크가 실패해 호스팅 방식과 함께 결정이 필요하다.
+- Go: GopherJS(BSD-2)로 브라우저 소스 컴파일·실행을 확인했다. stdin이 없고 자체 호스팅·중지는 미검증이다.
+- Rust: 브라우저 rustc(rubrc)는 동작하지만 COOP/COEP가 필요하다. 호스트 전체 격리 헤더를 바꾸지 않는다는 결정 때문에 팝업 안에서 쓸 수 없어 제외한다.
+- Java: TeaVM javac는 stdin이 없고 예외가 잡히지 않으며 라이선스 파일이 없다. CheerpJ는 자체 호스팅이 유료라 제외한다.
 
 ### 패널이 보여 주는 데이터
 
