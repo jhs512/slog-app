@@ -1,0 +1,89 @@
+{
+  "url": "https://www.slog.gg/p/14927",
+  "at": "2026-11-01T13:50:28.496Z",
+  "checks": {
+    "playButtons": 7,
+    "js": {
+      "first": {
+        "status": "완료",
+        "seconds": 2.3
+      },
+      "second": {
+        "status": "완료",
+        "seconds": 0
+      },
+      "outputOk": true,
+      "memoryOk": true,
+      "consoleTail": "JavaScript 준비 중… · 처음 실행할 때 런타임을 내려받습니다.실행하며 상태를 기록하는 중…민수 10 2\n정상 종료 · 7단계"
+    },
+    "python": {
+      "first": {
+        "status": "완료",
+        "seconds": 2.5
+      },
+      "second": {
+        "status": "완료",
+        "seconds": 0
+      },
+      "outputOk": true,
+      "memoryOk": true,
+      "consoleTail": "Python 준비 중… · 처음 실행할 때 런타임을 내려받습니다.실행하며 상태를 기록하는 중…민수 10 2\n정상 종료 · 22단계"
+    },
+    "java": {
+      "first": {
+        "status": "완료",
+        "seconds": 23.3
+      },
+      "second": {
+        "status": "완료",
+        "seconds": 0
+      },
+      "outputOk": true,
+      "memoryOk": true,
+      "consoleTail": "14행 1열 경고: Resource leak: 'scanner' is never closed컴파일 → 계측 → 실행 중…5 10 [5, 6] runs=1\n정상 종료 · 15단계"
+    },
+    "cStruct": {
+      "first": {
+        "status": "완료",
+        "seconds": 1
+      },
+      "second": null,
+      "outputOk": true,
+      "memoryOk": true,
+      "consoleTail": "C 인터프리터 준비 중… · 처음 실행할 때 런타임을 내려받습니다.실행하며 상태를 기록하는 중…10\n20\n30\n정상 종료 · 39단계"
+    },
+    "cInput": {
+      "first": {
+        "status": "오류 · 입력 부족",
+        "seconds": 0.3
+      },
+      "second": {
+        "status": "완료",
+        "seconds": 0
+      },
+      "outputOk": true,
+      "memoryOk": true,
+      "consoleTail": "C 인터프리터 준비 중… · 처음 실행할 때 런타임을 내려받습니다.실행하며 상태를 기록하는 중…n=4 last=9\n정상 종료 · 9단계"
+    },
+    "cpp": {
+      "first": {
+        "status": "완료",
+        "seconds": 6.1
+      },
+      "second": {
+        "status": "완료",
+        "seconds": 3.8
+      },
+      "outputOk": true,
+      "memoryOk": true,
+      "consoleTail": "C++ Clang/WASM 준비 중… · 처음 실행할 때 런타임을 내려받습니다.실행하며 상태를 기록하는 중…11 10\n정상 종료 · 11단계"
+    },
+    "origins": [
+      "https://www.googletagmanager.com",
+      "https://img1.kakaocdn.net",
+      "https://slog-2026-02-15.vercel.app",
+      "https://cjrtnc.leaningtech.com"
+    ],
+    "requestsWithSource": []
+  }
+}
