@@ -576,9 +576,14 @@ const ToastUIEditorViewerCore = forwardRef<any, ToastUIEditorViewerCoreProps>(
 
     useEffect(() => {
       if (!containerRef.current) return;
-      return observeLabBlocks(containerRef.current, (request) =>
+      const stop = observeLabBlocks(containerRef.current, (request) =>
         setLab({ ...request, content: processedContent }),
       );
+      // 문서가 바뀌면 열린 실험을 폐기한다. 같은 원문으로 돌아와도 다시 나타나지 않는다.
+      return () => {
+        stop();
+        setLab(null);
+      };
     }, [processedContent]);
 
     // Mermaid SVG에 PNG 기반 실제 너비 세팅

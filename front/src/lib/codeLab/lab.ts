@@ -1,4 +1,4 @@
-import { lookupKit } from "./kits";
+import { StarterKitVersion, lookupKit } from "./kits";
 
 export const PANEL_IDS = [
   "code",
@@ -44,7 +44,7 @@ export interface LabDefinition {
   engine: LabEngine;
   /** Prism 하이라이트에 쓸 언어 */
   highlight: string;
-  kit?: { name: string; version: number };
+  kit?: StarterKitVersion & { name: string; version: number };
   title: string;
 }
 
@@ -79,7 +79,7 @@ export function parseLabFence(info: string): FenceResult {
       lab: {
         engine: "react",
         highlight: "jsx",
-        kit: { name: kit.name, version: kit.version },
+        kit: { ...kit.kit, name: kit.name, version: kit.version },
         title: `${kit.kit.title} (${name})`,
       },
     };

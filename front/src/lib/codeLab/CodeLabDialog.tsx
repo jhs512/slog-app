@@ -129,10 +129,12 @@ export default function CodeLabDialog({
   const stop = () => {
     stopRef.current?.();
     stopRef.current = null;
-    setOutput((current) => ({
-      ...current,
-      status: { phase: "stopped", message: "사용자가 중지" },
-    }));
+    setOutput((current) =>
+      current.status?.phase === "preparing" ||
+      current.status?.phase === "running"
+        ? { ...current, status: { phase: "stopped", message: "사용자가 중지" } }
+        : current,
+    );
   };
 
   // 처음 열 때 원문을 한 번 실행하고, 닫을 때 실행 자원을 모두 정리한다.
@@ -177,7 +179,7 @@ export default function CodeLabDialog({
     observer.observe(body);
     if (renderSlotRef.current) observer.observe(renderSlotRef.current);
     return () => observer.disconnect();
-  });
+  }, [renderVisible, settings]);
 
   const togglePanel = (id: PanelId) => {
     const open = isOpen(id)

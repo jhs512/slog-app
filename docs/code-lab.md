@@ -40,7 +40,7 @@ export default function App() {
 ```
 ````
 
-- 언어 펜스 뒤에 `run`을 붙여야 실행용이 된다. 그냥 `c`, `js` 블록은 기존처럼 하이라이트만 한다.
+- 스타터킷 이름(`react-starter-1`)은 그 자체가 실행용 표시다(인터뷰 Q9). 언어 펜스는 뒤에 `run`을 붙여야 실행용이 된다. 그냥 `c`, `js` 블록은 기존처럼 하이라이트만 한다.
 - 지원하지 않는 언어에 `run`을 붙이거나(`rust run`) 없는 킷 버전을 쓰면(`react-starter-9`) 재생 버튼 대신 안내 문구가 나온다.
 - 한 파일 예제만 지원한다. HTML 예제는 CSS와 `<script>`를 한 문서에 담는다.
 - 프로그램 입력은 **입력** 패널에 실행 전에 적는다(선입력). 한 줄씩 C `scanf`/`getchar`, JS·TS `prompt()`에 전달되고, 다 쓰면 EOF(`null`)가 된다. 실행 중 대화형 입력은 지원하지 않는다.
@@ -72,6 +72,11 @@ Java·C++·Rust·Go는 지원하지 않는다. 판단 근거는 `.scratch/inline
 ## 격리와 제한
 
 - iframe은 `sandbox="allow-scripts"`만 받는다. 출처가 `null`이라 슬로그 쿠키·`localStorage`·부모 DOM에 접근할 수 없고, 슬로그 API는 CORS로 막힌다. 호스트는 `event.source`와 `origin === "null"`, 실행마다 새로 만든 토큰, 메시지 형태를 모두 확인한 뒤에만 받는다(`protocol.ts`).
+- sandbox 문서 맨 앞에 CSP를 둔다(`connect-src 'none'`, 스크립트·글꼴은 `/code-lab/`만). 사용자 코드의 `fetch`·XHR·WebSocket 요청은 보내지기 전에 막힌다(테스트에서 슬로그 API 요청이 나가지 않음을 확인). 이미지·미디어는 `https:`를 허용하므로 이미지 주소로 외부에 신호를 보내는 것까지는 막지 않는다.
+- 메시지 토큰은 사용자 코드도 읽을 수 있다. 토큰은 다른 실행의 늦은 메시지를 거르는 용도이고, 사용자 코드가 자기 패널에 거짓 값을 보내는 것은 막지 않는다. 호스트는 형태를 검증하고 화면에 텍스트로만 그린다.
+- 작성자 코드는 독자가 팝업을 열면 자동으로 한 번 실행된다. 위 sandbox·CSP 경계 안에서만 돈다.
+- C는 iframe이 아니라 호스트 출처의 Worker에서 돈다. 사용자 C 코드는 JavaScript로 실행되지 않고 c-it VM이 해석하며, VM은 네트워크·DOM API를 제공하지 않는다. 격리는 sandbox가 아니라 이 인터프리터 경계에 기대므로 c-it을 고칠 때 외부 API를 노출하지 않도록 주의한다.
+- Babel 컴파일 워커는 하나를 재사용한다. 소스를 변환만 하고 실행하지 않으며 요청마다 독립 호출이라 이전 원문이 남지 않는다(닫고 다시 열면 원문과 출력이 처음 상태인지 테스트로 확인). 20초 안에 응답이 없으면 워커를 새로 띄운다. 실행 런타임(iframe·Worker)은 실행마다 새로 만든다.
 - 호스트 앱 전체의 COOP/COEP 같은 격리 헤더는 바꾸지 않았다. `next.config.ts`는 `/code-lab/*` 경로에만 `Access-Control-Allow-Origin: *`를 붙인다(null 출처 iframe의 글꼴 요청용).
 - sandbox iframe은 Chromium에서 부모와 같은 프로세스·스레드를 쓴다(실측: iframe 안 무한 반복이 부모 타이머를 멈춤). 그래서 메인 스레드에서 도는 HTML·React 코드에는 Babel로 반복문마다 1.5초 제한을 넣는다. 이 제한은 `await`를 포함한 반복에도 누적 시간으로 걸린다. JS·TS는 Worker에서 돌아 화면을 막지 않으며 8초 뒤 종료한다.
 - 콘솔은 실행당 500항목, 항목당 4000자까지 받는다. DOM·VDOM 트리는 2000노드까지 보낸다.
@@ -88,4 +93,4 @@ Java·C++·Rust·Go는 지원하지 않는다. 판단 근거는 `.scratch/inline
 ## 검증
 
 `pnpm exec playwright test --config playwright.rendering.config.ts e2e/rendering/code-lab.spec.ts`
-(읽기 전용 fixture 글 8번. 버튼 노출 범위, 자동 첫 실행·수동 재실행·원문 초기화, 외부 요청 없음, Pretendard, JS 선입력·과다 출력·중지·오래된 결과, TS 오류, React 세 화면 차이·반복 제한, Tailwind, C 메모리·단계 이동·오류·단계 제한, 패널 설정 복원·키보드 크기 조절, 접힌 블록·모바일)
+(읽기 전용 fixture 글 8번. 버튼 노출 범위, sandbox 네트워크 차단, C 중간 닫기 후 재열기, 자동 첫 실행·수동 재실행·원문 초기화, 외부 요청 없음, Pretendard, JS 선입력·과다 출력·중지·오래된 결과, TS 오류, React 세 화면 차이·반복 제한, Tailwind, C 메모리·단계 이동·오류·단계 제한, 패널 설정 복원·키보드 크기 조절, 접힌 블록·모바일)

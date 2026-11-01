@@ -4,11 +4,11 @@ import type { Diagnostic as CDiagnostic } from "../business/vendor/c-it/engine/d
 import type {
   DoneInfo,
   FromWorker,
+  OutKind,
   ToWorker,
 } from "../business/vendor/c-it/engine/protocol";
 import { Timeline } from "../business/vendor/c-it/viewmodel/timeline";
-import { STARTER_KITS } from "./kits";
-import type { LabDefinition } from "./lab";
+import type { LabDefinition, LabEngine } from "./lab";
 import {
   CompileRequest,
   CompileResponse,
@@ -61,6 +61,21 @@ let compiler: Worker | null = null;
 let nextCompileId = 1;
 const pending = new Map<number, (response: CompileResponse) => void>();
 
+const COMPILE_TIMEOUT_MS = 20_000;
+
+const compileError = (id: number, message: string): CompileResponse => ({
+  id,
+  ok: false,
+  diagnostics: [{ line: 1, col: 1, severity: "error", message }],
+});
+
+function resetCompiler(message: string) {
+  for (const [id, resolve] of pending) resolve(compileError(id, message));
+  pending.clear();
+  compiler?.terminate();
+  compiler = null;
+}
+
 function compile(
   target: CompileTarget,
   source: string,
@@ -76,23 +91,7 @@ function compile(
     };
     compiler.onerror = (event) => {
       event.preventDefault();
-      for (const [id, resolve] of pending) {
-        resolve({
-          id,
-          ok: false,
-          diagnostics: [
-            {
-              line: 1,
-              col: 1,
-              severity: "error",
-              message: "컴파일러를 불러오지 못했습니다.",
-            },
-          ],
-        });
-      }
-      pending.clear();
-      compiler?.terminate();
-      compiler = null;
+      resetCompiler("컴파일러를 불러오지 못했습니다.");
     };
   }
   const request: CompileRequest = {
@@ -102,7 +101,15 @@ function compile(
     loopGuard,
   };
   return new Promise((resolve) => {
-    pending.set(request.id, resolve);
+    // 응답 없는 컴파일러가 이후 요청을 막지 않도록 시간이 지나면 새로 띄운다.
+    const timer = window.setTimeout(
+      () => resetCompiler("컴파일이 너무 오래 걸려 중단했습니다."),
+      COMPILE_TIMEOUT_MS,
+    );
+    pending.set(request.id, (response) => {
+      window.clearTimeout(timer);
+      resolve(response);
+    });
     compiler!.postMessage(request);
   });
 }
@@ -117,6 +124,34 @@ function inlineJson(value: unknown): string {
   return JSON.stringify(value).replace(/</g, "\\u003c");
 }
 
+type SandboxEngine = Exclude<LabEngine, "c">;
+
+const SANDBOX_ENGINES: Record<
+  SandboxEngine,
+  { target: CompileTarget; mode: SandboxConfig["mode"]; mainThread: boolean }
+> = {
+  html: { target: "html", mode: "html", mainThread: true },
+  javascript: { target: "javascript", mode: "worker", mainThread: false },
+  typescript: { target: "typescript", mode: "worker", mainThread: false },
+  react: { target: "react", mode: "react", mainThread: true },
+};
+
+const KIT_SCRIPTS = { react: "react-19.js", tailwind: "tailwind-4.js" };
+
+/** 사용자 코드의 네트워크 요청을 막는다. 런타임 자산과 이미지만 불러온다. */
+const CSP = () =>
+  [
+    "default-src 'none'",
+    `script-src 'unsafe-inline' 'unsafe-eval' ${window.location.origin}${ASSET_DIR}`,
+    "style-src 'unsafe-inline'",
+    `font-src ${window.location.origin}${ASSET_DIR}`,
+    "img-src data: blob: https:",
+    "media-src data: blob: https:",
+    "worker-src blob:",
+    "connect-src 'none'",
+    "form-action 'none'",
+  ].join("; ");
+
 function sandboxDocument(
   config: SandboxConfig,
   scripts: string[],
@@ -128,6 +163,7 @@ function sandboxDocument(
     .join("");
   return (
     `<!doctype html><meta charset="utf-8" data-slog-lab>` +
+    `<meta http-equiv="Content-Security-Policy" content="${CSP()}" data-slog-lab>` +
     `<style data-slog-lab>${FONT_CSS()}</style>` +
     `<script data-slog-lab>window.__SLOG_LAB_CONFIG__=${inlineJson(config)}</script>` +
     `<script data-slog-lab src="${assetUrl("runtime.js")}"></script>${tags}${head}${body}`
@@ -145,10 +181,8 @@ async function startSandbox(
   onCleanup: (cleanup: () => void) => void,
 ) {
   const { lab, source, input, frameHost } = request;
-  const target: CompileTarget =
-    lab.engine === "react" ? "react" : (lab.engine as CompileTarget);
-  const mainThread = lab.engine === "html" || lab.engine === "react";
-  const result = await compile(target, source, mainThread);
+  const engine = SANDBOX_ENGINES[lab.engine as SandboxEngine];
+  const result = await compile(engine.target, source, engine.mainThread);
   if (isStopped()) return;
   if (!result.ok) {
     sink.diagnostics(result.diagnostics);
@@ -160,36 +194,20 @@ async function startSandbox(
   const config: SandboxConfig = {
     token,
     hostOrigin: window.location.origin,
-    mode:
-      lab.engine === "html"
-        ? "html"
-        : lab.engine === "react"
-          ? "react"
-          : "worker",
-    code: lab.engine === "html" ? "" : result.code,
+    mode: engine.mode,
+    code: engine.mode === "html" ? "" : result.code,
     input,
     limits: SANDBOX_LIMITS,
   };
   let srcdoc: string;
-  if (lab.engine === "html") {
+  if (engine.mode === "html") {
     srcdoc = sandboxDocument(config, [], "", stripDoctype(result.code));
-  } else if (lab.engine === "react") {
-    const kit = lab.kit && STARTER_KITS[lab.kit.name]?.[lab.kit.version];
-    if (!kit) {
-      sink.status({
-        phase: "error",
-        message: "지원하지 않는 스타터킷 버전입니다.",
-      });
-      return;
-    }
-    const scripts = kit.assets.map((asset) =>
-      asset === "react" ? "react-19.js" : "tailwind-4.js",
-    );
+  } else if (lab.kit) {
     srcdoc = sandboxDocument(
       config,
-      scripts,
-      `<style>${kit.style}</style>`,
-      kit.body,
+      lab.kit.assets.map((asset) => KIT_SCRIPTS[asset]),
+      `<style>${lab.kit.style}</style>`,
+      lab.kit.body,
     );
   } else {
     srcdoc = sandboxDocument(config, [], "", "");
@@ -233,6 +251,13 @@ async function startSandbox(
 // ─── C (c-it 인터프리터) ────────────────────────────────
 
 const C_WALL_MS = 15_000;
+
+const OUTPUT_LEVELS: Record<OutKind, ConsoleEntry["level"]> = {
+  out: "log",
+  err: "error",
+  in: "info",
+  sys: "system",
+};
 
 function cDiagnostics(items: CDiagnostic[]): Diagnostic[] {
   return items
@@ -331,14 +356,7 @@ function startC(
         for (const step of message.steps) {
           for (const segment of step.out ?? []) {
             sink.console({
-              level:
-                segment.k === "err"
-                  ? "error"
-                  : segment.k === "out"
-                    ? "log"
-                    : segment.k === "in"
-                      ? "info"
-                      : "system",
+              level: OUTPUT_LEVELS[segment.k],
               text: segment.s,
             });
           }

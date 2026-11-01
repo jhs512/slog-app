@@ -266,6 +266,47 @@ test("C: 선입력과 실제 실행 추적으로 배열·포인터·할당/해�
   await expect(status(page)).toContainText("중지됨", { timeout: 20_000 });
 });
 
+test("C: 실행 중 닫고 다시 열면 이전 실행 없이 원문으로 처음부터 실행한다", async ({
+  page,
+}) => {
+  const { play } = await openLab(page, "malloc(sizeof(int) * n)");
+  await replaceCode(page, "int main(void) { while (1) {} }");
+  await page.getByTestId("code-lab-run").click();
+  await page.getByTestId("code-lab-close").click();
+  await expect(page.getByTestId("code-lab-dialog")).toHaveCount(0);
+  await play.click();
+  await expect(page.getByTestId("code-lab-editor")).toHaveValue(/malloc/);
+  await expect(consoleOf(page)).toContainText("n=3 p=20 last=4");
+  await expect(consoleOf(page)).not.toContainText("단계 제한");
+  await expect(
+    consoleOf(page).locator("div", { hasText: "종료 코드" }),
+  ).toHaveCount(1);
+  const memory = page.getByTestId("code-lab-memory");
+  await expect(memory.locator('[data-freed="true"]')).toHaveCount(1);
+});
+
+test("사용자 코드의 네트워크 요청은 sandbox 정책으로 막힌다", async ({
+  page,
+}) => {
+  const fromSandbox: string[] = [];
+  page.on("request", (req) => {
+    if (req.frame() !== page.mainFrame()) fromSandbox.push(req.url());
+  });
+  await openLab(page, 'getElementById("inc")');
+  await replaceCode(
+    page,
+    '<script>fetch("http://127.0.0.1:8097/member/api/v1/auth/me", { credentials: "include" }).then(() => console.log("요청 성공"), () => console.log("요청 차단"));</script>',
+  );
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText("요청 차단");
+  await expect(consoleOf(page)).not.toContainText("요청 성공");
+  // 런타임 자산 요청이 잡히는지로 수집 자체를 확인한 뒤 API 요청이 없음을 본다.
+  expect(fromSandbox.some((url) => url.endsWith("/code-lab/runtime.js"))).toBe(
+    true,
+  );
+  expect(fromSandbox.filter((url) => url.includes("/auth/me"))).toEqual([]);
+});
+
 test("패널 열고 닫기·배치·크기 조절은 기억하고 코드와 입력은 기억하지 않는다", async ({
   page,
 }) => {

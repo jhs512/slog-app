@@ -45,7 +45,10 @@ export interface LabOpenRequest {
   trigger: HTMLButtonElement;
 }
 
-/** 뷰어 안의 실행용 블록에 재생 버튼을 붙인다. 반환 함수로 관찰을 끝낸다. */
+/**
+ * 뷰어 안의 실행용 블록에 재생 버튼을 붙인다. 클릭은 root 에서 위임받아 처리하므로
+ * 문서가 바뀌어 다시 관찰해도 이전 콜백이 남지 않는다. 반환 함수로 관찰을 끝낸다.
+ */
 export function observeLabBlocks(
   root: HTMLElement,
   onOpen: (request: LabOpenRequest) => void,
@@ -66,18 +69,31 @@ export function observeLabBlocks(
         button.setAttribute("aria-haspopup", "dialog");
         button.title = "코드 실험 열기";
         button.textContent = "▶";
-        button.addEventListener("click", () =>
-          onOpen({
-            lab: fence.lab,
-            source: decodeURIComponent(block.dataset.codeLabSource ?? ""),
-            trigger: button,
-          }),
-        );
         block.prepend(button);
       });
   };
+  const onClick = (event: MouseEvent) => {
+    const button = (event.target as Element | null)?.closest?.(
+      ".code-lab-play",
+    );
+    const block = button?.parentElement;
+    if (!(button instanceof HTMLButtonElement) || !block) return;
+    const fence = parseLabFence(
+      decodeURIComponent(block.dataset.codeLabInfo ?? ""),
+    );
+    if (fence?.kind !== "runnable") return;
+    onOpen({
+      lab: fence.lab,
+      source: decodeURIComponent(block.dataset.codeLabSource ?? ""),
+      trigger: button,
+    });
+  };
   attach();
+  root.addEventListener("click", onClick);
   const observer = new MutationObserver(attach);
   observer.observe(root, { childList: true, subtree: true });
-  return () => observer.disconnect();
+  return () => {
+    observer.disconnect();
+    root.removeEventListener("click", onClick);
+  };
 }
