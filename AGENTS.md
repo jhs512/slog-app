@@ -162,14 +162,4 @@ Android / iOS / Web 이 UI 를 공유하고, **글 본문만 각 플랫폼 웹�
 
 # 에이전트 문서
 
-## 이슈 트래커
-
-이슈와 PRD는 `.scratch/<feature>/` 아래 로컬 마크다운 파일로 관리합니다. `docs/agents/issue-tracker.md` 참고.
-
-## Triage 라벨
-
-다섯 가지 표준 triage 역할을 기본 문자열 그대로 사용합니다. `docs/agents/triage-labels.md` 참고.
-
-## 도메인 문서
-
-단일 컨텍스트 레이아웃 (`CONTEXT.md` + `docs/adr/`). `docs/agents/domain.md` 참고.
+이슈·스펙 작업 전 `docs/agents/issue-tracker.md`, triage 전 `docs/agents/triage-labels.md`, 코드 탐색 전 `docs/agents/domain.md`를 읽는다.
