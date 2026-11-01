@@ -65,9 +65,9 @@ export function observeLabBlocks(
         const button = document.createElement("button");
         button.type = "button";
         button.className = "code-lab-play";
-        button.setAttribute("aria-label", `${fence.lab.title} 코드 실험 열기`);
+        button.setAttribute("aria-label", `${fence.lab.title} 런박스 열기`);
         button.setAttribute("aria-haspopup", "dialog");
-        button.title = "코드 실험 열기";
+        button.title = "런박스 열기";
         button.textContent = "▶";
         block.prepend(button);
       });

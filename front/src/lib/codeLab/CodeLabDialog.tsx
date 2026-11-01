@@ -463,7 +463,7 @@ export default function CodeLabDialog({
             type="button"
             className="code-lab-action"
             onClick={onClose}
-            aria-label="코드 실험 닫기"
+            aria-label="런박스 닫기"
             data-testid="code-lab-close"
           >
             닫기
