@@ -35,6 +35,9 @@ export default function WideHeaderContent({
       <Button variant="link" asChild>
         <Link href="/marp">Marp</Link>
       </Button>
+      <Button variant="link" asChild>
+        <Link href="/runbox">런박스</Link>
+      </Button>
       {isLogin && (
         <Button variant="link" asChild>
           <Link href="/p/mine">

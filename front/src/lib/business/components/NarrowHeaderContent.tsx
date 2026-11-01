@@ -90,6 +90,17 @@ export default function NarrowHeaderContent({
                   </Button>
                 </DrawerClose>
               </li>
+              <li>
+                <DrawerClose asChild>
+                  <Button
+                    variant="link"
+                    className="w-full justify-start"
+                    asChild
+                  >
+                    <Link href="/runbox">런박스 만들기</Link>
+                  </Button>
+                </DrawerClose>
+              </li>
               {isLogin && (
                 <li>
                   <DrawerClose asChild>

@@ -18,6 +18,24 @@ const frame = (page: Page) =>
 const consoleOf = (page: Page) => page.getByTestId("code-lab-console");
 const status = (page: Page) => page.getByTestId("code-lab-status");
 
+test("상단 런박스 안내에서 작성법과 실행 예시를 발견한다", async ({ page }) => {
+  await page.getByRole("link", { name: "런박스", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "런박스 만들기", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".code-lab-play")).toHaveCount(10);
+  await page.getByText("글에 붙여 넣을 원문", { exact: true }).first().click();
+  await expect(page.locator("details").first()).toContainText("```html run");
+  await page.locator(".code-lab-play").first().click();
+  await expect(page.getByTestId("code-lab-status")).toHaveText("완료");
+  await expect(
+    page.getByRole("heading", { name: "런박스 · HTML" }),
+  ).toBeVisible();
+  await expect(
+    frame(page).getByRole("button", { name: "0", exact: true }),
+  ).toBeVisible();
+});
+
 for (const platform of ["MacIntel", "Win32"]) {
   test(`운영체제별 단축키 실행과 패널 안내 ${platform}`, async ({ page }) => {
     await page.addInitScript((value) => {

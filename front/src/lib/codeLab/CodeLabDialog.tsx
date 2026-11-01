@@ -381,7 +381,7 @@ export default function CodeLabDialog({
       >
         <div className="flex flex-wrap items-center gap-2 border-b border-border p-2">
           <h2 id="code-lab-title" className="mr-2 text-sm font-semibold">
-            코드 실험 · {lab.title}
+            런박스 · {lab.title}
           </h2>
           <button
             type="button"
