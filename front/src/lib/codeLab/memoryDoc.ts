@@ -7,7 +7,8 @@ export interface MemoryDocStep {
 }
 
 export interface MemoryDoc {
-  language: "c" | "cpp";
+  language: "c" | "cpp" | "js" | "python" | "java" | string;
+  code?: string;
   status: "ok" | "compile_error" | "uncaught_exception" | "step_limit" | string;
   message?: string;
   problems?: { line: number; message: string; error?: boolean }[];

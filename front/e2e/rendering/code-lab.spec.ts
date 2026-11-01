@@ -30,7 +30,7 @@ test.beforeEach(async ({ page }) => {
 test("작성자가 표시한 블록에만 재생 버튼이 있고 기존 렌더링은 유지된다", async ({
   page,
 }) => {
-  await expect(page.locator(".code-lab-play")).toHaveCount(10);
+  await expect(page.locator(".code-lab-play")).toHaveCount(13);
   await expect(page.locator(".code-lab-note")).toHaveCount(2);
   await expect(page.locator(".code-lab-note").first()).toContainText(
     "버전 9이 없습니다",
@@ -97,7 +97,9 @@ test("HTML 실험: 최초 자동 실행, 수정 후 수동 실행, 닫고 다시
       !url.startsWith("http://127.0.0.1:8097/") &&
       !url.startsWith("data:") &&
       !url.startsWith("blob:") &&
-      !url.startsWith("about:"),
+      !url.startsWith("about:") &&
+      // 글 본문 Mermaid 다이어그램 이미지(코드 실험과 무관, 운영 빌드에서 늦게 요청됨)
+      !url.startsWith("https://mermaid.ink/"),
   );
   expect(foreign).toEqual([]);
   expect(
@@ -238,8 +240,8 @@ test("C: 선입력과 JSCPP 추적으로 배열·포인터·malloc/free 메모�
 }) => {
   await openLab(page, "malloc(sizeof(int) * n)");
   // 원본 JSCPP 경로와 같이 선입력 없이 scanf 가 EOF 를 만나면 실행 오류로 끝난다.
-  await expect(status(page)).toContainText("예외로 종료", { timeout: 30_000 });
-  await expect(consoleOf(page)).toContainText("Memory overflow");
+  await expect(status(page)).toContainText("입력 부족", { timeout: 30_000 });
+  await expect(consoleOf(page)).toContainText("입력 부족: 6행 scanf");
   await page.getByTestId("code-lab-input").fill("4");
   await page.getByTestId("code-lab-run").click();
   await expect(consoleOf(page)).toContainText("n=4 p=20 last=9");
@@ -292,9 +294,9 @@ test("C: 실행 중 닫고 다시 열면 이전 실행 없이 원문으로 처�
   await play.click();
   await expect(page.getByTestId("code-lab-editor")).toHaveValue(/malloc/);
   await expect(page.getByTestId("code-lab-input")).toHaveValue("");
-  await expect(status(page)).toContainText("예외로 종료", { timeout: 30_000 });
+  await expect(status(page)).toContainText("입력 부족", { timeout: 30_000 });
   await expect(
-    consoleOf(page).locator("div", { hasText: "예외로 종료" }),
+    consoleOf(page).locator("div", { hasText: "입력 부족 ·" }),
   ).toHaveCount(1);
   await expect(consoleOf(page)).not.toContainText("시간 제한");
 });
@@ -332,6 +334,8 @@ test("C++: 브라우저 Clang으로 컴파일하고 선입력·참조·new/delet
     requests.filter(
       (url) =>
         !url.startsWith("http://localhost:3007/") &&
+        // 다른 사이트에 둔 실행기(개발 환경은 127.0.0.1)의 정적 런타임 자산
+        !url.startsWith("http://127.0.0.1:3007/code-lab/") &&
         !url.startsWith("http://127.0.0.1:8097/") &&
         !/^(data|blob|about):/.test(url) &&
         !url.includes("mermaid.ink"),
@@ -377,7 +381,7 @@ test("패널 열고 닫기·배치·크기 조절은 기억하고 코드와 입�
   const { play } = await openLab(page, "malloc(sizeof(int) * n)");
   const dialog = page.getByTestId("code-lab-dialog");
   await expect(dialog.locator("[data-panel]")).toHaveCount(4);
-  await expect(status(page)).toContainText("예외로 종료", { timeout: 30_000 });
+  await expect(status(page)).toContainText("입력 부족", { timeout: 30_000 });
   await dialog.getByRole("button", { name: "메모리 패널 닫기" }).click();
   await expect(dialog.locator('[data-panel="memory"]')).toHaveCount(0);
   await expect(
@@ -426,4 +430,174 @@ test("접힌 블록과 모바일 화면에서도 실험을 열고 닫는다", as
   expect(box!.width).toBeLessThanOrEqual(390);
   await page.getByTestId("code-lab-close").click();
   await expect(page.getByTestId("code-lab-dialog")).toHaveCount(0);
+});
+
+test("JavaScript 메모리(js memory): 원본 JS 추적기로 객체 별칭과 선입력을 추적한다", async ({
+  page,
+}) => {
+  await openLab(page, "const alias = head;");
+  await expect(status(page)).toHaveText("완료", { timeout: 60_000 });
+  await expect(consoleOf(page)).toContainText("손님 10 2");
+  await page.getByTestId("code-lab-input").fill("민수");
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText("민수 10 2");
+  const view = memoryView(page);
+  await lastStep(page);
+  await expect(view.locator(".viz")).toContainText("alias");
+  await expect(view.locator(".viz")).toContainText("head");
+  await replaceCode(page, "while (true) {}");
+  await page.getByTestId("code-lab-run").click();
+  await expect(status(page)).toContainText(/중지됨|오류/, { timeout: 30_000 });
+});
+
+test("Python: Pyodide 추적·선입력·실행 간 전역 격리·중지 후 재실행", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await openLab(page, "class Node:");
+  await expect(status(page)).toHaveText("완료", { timeout: 120_000 });
+  await expect(consoleOf(page)).toContainText("손님 10 2");
+  await page.getByTestId("code-lab-input").fill("민수");
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText("민수 10 2");
+  const view = memoryView(page);
+  await lastStep(page);
+  await expect(view.locator(".viz")).toContainText("Node");
+  await expect(view.locator(".viz")).toContainText("alias");
+
+  await replaceCode(page, "secret = 42\nprint('set')");
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText("set");
+  await replaceCode(page, "print('secret' in globals())");
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText("False");
+
+  await replaceCode(page, "import time\ntime.sleep(60)");
+  await page.getByTestId("code-lab-run").click();
+  await expect(status(page)).toHaveText("실행 중", { timeout: 30_000 });
+  await page.getByTestId("code-lab-stop").click();
+  await expect(status(page)).toContainText("중지됨");
+  await replaceCode(page, "print(6 * 7)");
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText("42", { timeout: 120_000 });
+});
+
+test("Java: CheerpJ 공식 CDN에서 컴파일·선입력·객체 메모리, static 상태 비누출, 중지 후 재실행", async ({
+  page,
+}) => {
+  test.setTimeout(600_000);
+  const { play } = await openLab(page, "static int runs");
+  await expect(status(page)).toHaveText("완료", { timeout: 420_000 });
+  await expect(consoleOf(page)).toContainText("3 6 [3, 4] runs=1");
+  await expect(
+    page.getByRole("link", { name: "Built with CheerpJ" }),
+  ).toBeVisible();
+  await page.getByTestId("code-lab-input").fill("5");
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText("5 10 [5, 6] runs=1", {
+    timeout: 120_000,
+  });
+  const view = memoryView(page);
+  await lastStep(page);
+  await expect(view.locator(".viz")).toContainText("Node");
+
+  await replaceCode(
+    page,
+    "public class Main {\n  public static void main(String[] args) {\n    int x = ;\n  }\n}",
+  );
+  await page.getByTestId("code-lab-run").click();
+  await expect(status(page)).toContainText("컴파일 오류", { timeout: 120_000 });
+  await expect(consoleOf(page)).toContainText("3행");
+
+  await page.getByTestId("code-lab-close").click();
+  await play.click();
+  await expect(page.getByTestId("code-lab-editor")).toHaveValue(
+    /static int runs/,
+  );
+  await page.getByTestId("code-lab-stop").click();
+  await expect(status(page)).toContainText("중지됨");
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText("3 6 [3, 4] runs=1", {
+    timeout: 420_000,
+  });
+});
+
+test("C: 선입력이 모자라 scanf가 멈추면 입력 부족으로 안내한다", async ({
+  page,
+}) => {
+  await openLab(page, "malloc(sizeof(int) * n)");
+  await expect(status(page)).toContainText("입력 부족", { timeout: 60_000 });
+  await expect(consoleOf(page)).toContainText(
+    "입력 부족: 6행 scanf가 읽을 입력이 없습니다.",
+  );
+  await expect(consoleOf(page)).not.toContainText("Memory overflow");
+});
+
+test("메모리 실행기: 사용자 Python 코드의 슬로그 API 요청은 실행기 CSP로 막힌다", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  // CSP 로 막힌 요청도 request 이벤트는 생기므로 실제로 응답을 받은 요청만 센다.
+  const apiCalls: string[] = [];
+  const blocked: string[] = [];
+  page.on("requestfinished", (req) => {
+    if (req.url().includes("/auth/me") && req.frame() !== page.mainFrame()) {
+      apiCalls.push(req.url());
+    }
+  });
+  page.on("requestfailed", (req) => {
+    if (req.url().includes("/auth/me")) {
+      blocked.push(req.failure()?.errorText ?? "");
+    }
+  });
+  await openLab(page, "class Node:");
+  await expect(status(page)).toHaveText("완료", { timeout: 120_000 });
+  await replaceCode(
+    page,
+    [
+      "try:",
+      "    from pyodide.http import open_url",
+      "    open_url('http://127.0.0.1:8097/member/api/v1/auth/me?probe=code-lab-isolation')",
+      "    print('요청 성공')",
+      "except Exception:",
+      "    print('요청 차단')",
+    ].join("\n"),
+  );
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText("요청 차단", { timeout: 60_000 });
+  await expect(consoleOf(page)).not.toContainText("요청 성공");
+  expect(apiCalls).toEqual([]);
+  expect(blocked.length).toBeGreaterThan(0);
+  const probe = await page.request.get("http://127.0.0.1:8097/__probe-hits");
+  expect(await probe.json()).toEqual({ hits: 0 });
+});
+
+test("메모리 실행기: 팝업을 닫으면 런타임을 버려 다음 팝업에 상태가 이어지지 않는다", async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const { play } = await openLab(page, "class Node:");
+  await expect(status(page)).toHaveText("완료", { timeout: 120_000 });
+  await replaceCode(
+    page,
+    "import builtins\nbuiltins.poison = 1\nprint('오염')",
+  );
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText("오염");
+  await replaceCode(
+    page,
+    "import builtins\nprint('같은 팝업', hasattr(builtins, 'poison'))",
+  );
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText("같은 팝업 True");
+  await page.getByTestId("code-lab-close").click();
+  await expect(page.locator('iframe[title="코드 실험 실행기"]')).toHaveCount(0);
+  await play.click();
+  await expect(status(page)).toHaveText("완료", { timeout: 120_000 });
+  await replaceCode(
+    page,
+    "import builtins\nprint('새 팝업', hasattr(builtins, 'poison'))",
+  );
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText("새 팝업 False");
 });

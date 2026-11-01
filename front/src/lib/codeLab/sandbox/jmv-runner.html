@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      사용자 코드(Python·JS·Java)의 네트워크 요청을 실행기 자신의 정적 자산과 CheerpJ 공식 CDN으로 제한한다.
+      슬로그 API(api.slog.gg)나 외부 주소로는 요청을 보내지 못한다.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' https://cjrtnc.leaningtech.com; script-src 'self' https://cjrtnc.leaningtech.com 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; connect-src 'self' https://cjrtnc.leaningtech.com data: blob:; img-src 'self' data: blob:; style-src 'self' https://cjrtnc.leaningtech.com 'unsafe-inline'; frame-src https://cjrtnc.leaningtech.com; form-action 'none'"
+    />
+    <title>코드 실험 실행기</title>
+    <script type="module" src="./jmv-runner.js"></script>
+  </head>
+  <body></body>
+</html>

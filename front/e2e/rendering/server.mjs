@@ -5,12 +5,20 @@ import { codeLabPost } from "./code-lab-fixtures.mjs";
 import { bilingualPost, post, speechPost, umlPost } from "./fixtures.mjs";
 import { fencedMarpPost, marpPost, mixedPost } from "./marp-fixtures.mjs";
 
+// 격리 테스트가 "요청이 서버에 닿지 않았다"를 확인하도록 표시 붙은 요청 수를 센다.
+let probeHits = 0;
+
 createServer((req, res) => {
+  if (req.url.includes("probe=code-lab-isolation")) probeHits++;
   res.setHeader("Access-Control-Allow-Origin", "http://localhost:3007");
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Headers", "content-type");
   res.setHeader("Content-Type", "application/json");
   const path = new URL(req.url, "http://localhost:8097").pathname;
+  if (path === "/__probe-hits") {
+    res.end(JSON.stringify({ hits: probeHits }));
+    return;
+  }
   if (path === "/post/api/v1/posts" && req.method === "GET") {
     res.end(
       JSON.stringify({

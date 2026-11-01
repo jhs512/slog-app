@@ -110,6 +110,47 @@ int main() {
   return 0;
 }`;
 
+export const jsMemoryLab = `const name = prompt() || "손님";
+const head = { value: 1, next: { value: 2, next: null } };
+const alias = head;
+alias.value = 10;
+console.log(name, head.value, head.next.value);`;
+
+export const pythonLab = `import sys
+
+class Node:
+    def __init__(self, value, next=None):
+        self.value = value
+        self.next = next
+
+name = sys.stdin.readline().strip() or "손님"
+head = Node(1, Node(2))
+alias = head
+alias.value = 10
+print(name, head.value, head.next.value)`;
+
+export const javaLab = `import java.util.*;
+
+public class Main {
+    static int runs = 0;
+
+    static class Node {
+        int value;
+        Node next;
+        Node(int value) { this.value = value; }
+    }
+
+    public static void main(String[] args) {
+        runs++;
+        Scanner scanner = new Scanner(System.in);
+        int n = scanner.hasNextInt() ? scanner.nextInt() : 3;
+        Node head = new Node(n);
+        head.next = new Node(n * 2);
+        List<Integer> list = new ArrayList<>(List.of(n, n + 1));
+        System.out.println(head.value + " " + head.next.value + " " + list + " runs=" + runs);
+    }
+}`;
+
 export const codeLabContent = [
   "# 코드 실험",
   "설명용 C 코드에는 버튼이 없습니다.",
@@ -130,6 +171,12 @@ export const codeLabContent = [
   fence("c run", cStructLab),
   "## C++",
   fence("cpp run", cppLab),
+  "## JavaScript 메모리",
+  fence("js memory", jsMemoryLab),
+  "## Python",
+  fence("python run", pythonLab),
+  "## Java",
+  fence("java run", javaLab),
   fence("rust run", 'fn main() { println!("hi"); }'),
   "## 회귀",
   fence("mermaid", "graph TD\n  A --> B"),

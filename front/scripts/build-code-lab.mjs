@@ -59,7 +59,7 @@ await Promise.all([
   ),
 ]);
 
-// ─── C·C++ 메모리 비주얼라이저 (Java-memory-visualizer 5762765) ──────────
+// ─── C·C++·Python·Java·JS 메모리 비주얼라이저 (Java-memory-visualizer 5762765) ───
 // 검증된 추적기·렌더러는 vendor/jmv 에 원본 그대로 두고, 아래 PATCHES 만 복사할 때 적용한다.
 // 원본이 바뀌어 기준 문자열이 없으면 빌드를 멈춰 조용히 어긋나지 않게 한다.
 const jmv = join(out, "jmv");
@@ -69,6 +69,23 @@ await mkdir(join(jmv, "licenses"), { recursive: true });
 await mkdir(browsercc, { recursive: true });
 
 const PATCHES = {
+  // CheerpJ 의 /app/ 은 실행기 출처의 루트다. Java 자산을 이 폴더 아래로 옮긴다.
+  "runtime-config.js": [
+    [
+      "export const VENDOR = '/app/web/vendor';",
+      "export const VENDOR = '/app/code-lab/jmv/java';",
+    ],
+  ],
+  "language-worker.js": [
+    [
+      "await import('/web/vendor/pyodide-314.0.7/pyodide.mjs')",
+      "await import(new URL('./pyodide-314.0.7/pyodide.mjs',import.meta.url).href)",
+    ],
+    [
+      "loadPyodide({ indexURL: '/web/vendor/pyodide-314.0.7/' })",
+      "loadPyodide({ indexURL: new URL('./pyodide-314.0.7/',import.meta.url).href })",
+    ],
+  ],
   "cpp-tracer.js": [
     // 원본은 사이트 루트의 /web/vendor 를 쓴다. 이 모듈 옆 폴더로 바꾼다.
     [
@@ -83,30 +100,47 @@ const PATCHES = {
   ],
 };
 
-for (const file of await readdir(jmvVendor)) {
-  if (file === "licenses" || file === "README.md") continue;
-  let text = await readFile(join(jmvVendor, file), "utf8");
-  for (const [from, to] of PATCHES[file] ?? []) {
-    if (!text.includes(from))
-      throw new Error(`${file} 패치 기준이 없습니다: ${from}`);
-    text = text.replace(from, () => to);
+/** 텍스트 모듈에만 패치를 적용하고 jar 같은 이진 파일과 하위 폴더는 그대로 복사한다. */
+async function copyTree(from, to) {
+  await mkdir(to, { recursive: true });
+  for (const entry of await readdir(from, { withFileTypes: true })) {
+    const source = join(from, entry.name);
+    const target = join(to, entry.name);
+    if (entry.isDirectory()) {
+      await copyTree(source, target);
+    } else if (PATCHES[entry.name]) {
+      let text = await readFile(source, "utf8");
+      for (const [before, after] of PATCHES[entry.name]) {
+        if (!text.includes(before))
+          throw new Error(`${entry.name} 패치 기준이 없습니다: ${before}`);
+        text = text.replace(before, () => after);
+      }
+      await writeFile(target, text);
+    } else if (entry.name !== "README.md") {
+      await copyFile(source, target);
+    }
   }
-  await writeFile(join(jmv, file), text);
 }
-for (const file of await readdir(join(jmvVendor, "licenses"))) {
+await copyTree(jmvVendor, jmv);
+for (const file of ["jmv-memory.js", "jmv-runner.js", "jmv-runner.html"]) {
   await copyFile(
-    join(jmvVendor, "licenses", file),
-    join(jmv, "licenses", file),
+    src(`codeLab/sandbox/${file}`),
+    join(jmv, file === "jmv-runner.html" ? "runner.html" : file),
   );
 }
-await copyFile(
-  src("codeLab/sandbox/jmv-worker.js"),
-  join(jmv, "jmv-worker.js"),
-);
-await copyFile(
-  src("codeLab/sandbox/jmv-memory.js"),
-  join(jmv, "jmv-memory.js"),
-);
+
+const pyodide = join(jmv, "pyodide-314.0.7");
+await mkdir(pyodide, { recursive: true });
+const pyDist = dirname(require.resolve("pyodide/package.json"));
+for (const file of [
+  "pyodide.mjs",
+  "pyodide.asm.mjs",
+  "pyodide.asm.wasm",
+  "python_stdlib.zip",
+  "pyodide-lock.json",
+]) {
+  await copyFile(join(pyDist, file), join(pyodide, file));
+}
 
 const ccDist = join(dirname(require.resolve("browsercc/package.json")), "dist");
 for (const file of ["clang.js", "lld.js"]) {

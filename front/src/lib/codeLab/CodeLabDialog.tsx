@@ -8,6 +8,7 @@ import MemoryFrame from "./MemoryFrame";
 import Split, { SplitItem } from "./Split";
 import { ENGINE_PANELS, LabDefinition, PANEL_LABELS, PanelId } from "./lab";
 import type { MemoryDoc } from "./memoryDoc";
+import { releaseMemoryRunner } from "./memoryRunner";
 import { ConsoleView, DomView, VdomView } from "./panels";
 import type {
   ConsoleEntry,
@@ -145,6 +146,8 @@ export default function CodeLabDialog({
     return () => {
       stopRef.current?.();
       stopRef.current = null;
+      // 메모리 언어 실행기는 팝업 안에서만 재사용하고 닫으면 버린다.
+      releaseMemoryRunner();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -428,6 +431,20 @@ export default function CodeLabDialog({
         <p className="border-t border-border px-2 py-1 text-[11px] text-muted-foreground">
           모든 컴파일·실행은 이 브라우저 안에서만 일어나며 서버로 코드를 보내지
           않습니다. 수정한 코드는 저장되지 않고 닫으면 원문으로 돌아갑니다.
+          {lab.engine === "java" && (
+            <>
+              {" "}
+              Java는 CheerpJ 공식 CDN의 JVM에서 실행합니다.{" "}
+              <a
+                href="https://cheerpj.com/"
+                target="_blank"
+                rel="noreferrer"
+                className="underline"
+              >
+                Built with CheerpJ
+              </a>
+            </>
+          )}
         </p>
       </div>
     </div>,
