@@ -11,13 +11,20 @@ import tableMergedCell from "@toast-ui/editor-plugin-table-merged-cell";
 import "@toast-ui/chart/dist/toastui-chart.css";
 import "@toast-ui/editor-plugin-table-merged-cell/dist/toastui-editor-plugin-table-merged-cell.css";
 
-import { forwardRef, useEffect, useMemo, useRef } from "react";
+import dynamic from "next/dynamic";
+
+import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 
 // @ts-expect-error - 타입 정보 없음. <details> 안쪽 마크다운을 별도 렌더할 때 쓰는
 // Viewer 클래스 본체 (@toast-ui/react-editor 의 Viewer 가 감싸고 있는 것과 동일)
 import ViewerClass from "@toast-ui/editor/dist/toastui-editor-viewer";
 import { Viewer } from "@toast-ui/react-editor";
 
+import {
+  LabOpenRequest,
+  observeLabBlocks,
+  renderLabBlock,
+} from "../../codeLab/blocks";
 import { comicBlockHTML, observeComicBlocks } from "../comicGen";
 import {
   convertCodeBlocksToDiagramSyntax,
@@ -27,6 +34,10 @@ import {
   wrapDetailsBlocks,
 } from "../markdownUtils";
 import { filterObjectKeys, getParamsFromUrl, isExternalUrl } from "../utils";
+
+const CodeLabDialog = dynamic(() => import("../../codeLab/CodeLabDialog"), {
+  ssr: false,
+});
 
 // ─── PlantUML 인코딩 함수 ───────────────────────────────
 function encodePlantUML(text: string): string {
@@ -382,14 +393,20 @@ function codeSyntaxHighlightEscaped(context: any, options: any) {
       codeBlock(node: any, rendererContext: any) {
         const comic = comicBlockHTML(node.info ?? "", node.literal);
         if (comic !== null) return [{ type: "html", content: comic }];
-        const tokens = originalCodeBlock(node, rendererContext);
-
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return tokens.map((token: any) =>
-          token.type === "html" && token.content === node.literal
-            ? { ...token, content: escapeHtml(node.literal) }
-            : token,
+        const highlight = (target: any) =>
+          originalCodeBlock(target, rendererContext).map(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (token: any) =>
+              token.type === "html" && token.content === node.literal
+                ? { ...token, content: escapeHtml(node.literal) }
+                : token,
+          );
+        // 실행용 블록은 `c run`처럼 info 에 표시가 붙으므로 하이라이트 언어만 바꿔 넘긴다.
+        const lab = renderLabBlock(node.info ?? "", node.literal, (language) =>
+          highlight(Object.create(node, { info: { value: language } })),
         );
+        return lab ?? highlight(node);
       },
     },
   };
@@ -543,6 +560,9 @@ const ToastUIEditorViewerCore = forwardRef<any, ToastUIEditorViewerCoreProps>(
     useEffect(() => {
       if (containerRef.current) return observeComicBlocks(containerRef.current);
     }, []);
+    const [lab, setLab] = useState<
+      (LabOpenRequest & { content: string }) | null
+    >(null);
     // 1. 코드 블록 다이어그램 문법 변환 (```uml -> $$uml$$, ```youtube -> $$youtube$$ 등)
     // 2. surl: 링크 처리
     // 3. <details> 구간을 $$details 커스텀 블록 하나로 묶기
@@ -553,6 +573,13 @@ const ToastUIEditorViewerCore = forwardRef<any, ToastUIEditorViewerCoreProps>(
       }
       return wrapDetailsBlocks(content);
     }, [props.initialValue, props.postId]);
+
+    useEffect(() => {
+      if (!containerRef.current) return;
+      return observeLabBlocks(containerRef.current, (request) =>
+        setLab({ ...request, content: processedContent }),
+      );
+    }, [processedContent]);
 
     // Mermaid SVG에 PNG 기반 실제 너비 세팅
     useEffect(() => {
@@ -594,6 +621,17 @@ const ToastUIEditorViewerCore = forwardRef<any, ToastUIEditorViewerCoreProps>(
           initialValue={processedContent}
           customHTMLRenderer={viewerCustomHTMLRenderer}
         />
+        {/* 문서가 바뀌면 이전 실험은 원문과 맞지 않으므로 닫힌 것으로 본다. */}
+        {lab && lab.content === processedContent && (
+          <CodeLabDialog
+            lab={lab.lab}
+            source={lab.source}
+            onClose={() => {
+              lab.trigger.focus();
+              setLab(null);
+            }}
+          />
+        )}
       </div>
     );
   },

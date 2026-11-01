@@ -17,6 +17,7 @@ const eslintConfig = defineConfig([
     "src/components/**",
     "src/hooks/**",
     "src/lib/business/vendor/**",
+    "public/code-lab/**",
     "src/lib/backend/*/schema.d.ts",
   ]),
   {

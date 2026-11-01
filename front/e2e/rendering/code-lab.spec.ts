@@ -1,0 +1,323 @@
+import { Page, expect, test } from "@playwright/test";
+
+const POST = "/p/8";
+
+const block = (page: Page, text: string) =>
+  page.locator(".code-lab-block").filter({ hasText: text });
+
+async function openLab(page: Page, text: string) {
+  const play = block(page, text).locator(".code-lab-play");
+  await play.click();
+  const dialog = page.getByTestId("code-lab-dialog");
+  await expect(dialog).toBeVisible();
+  return { play, dialog };
+}
+
+const frame = (page: Page) =>
+  page.frameLocator("[data-testid=code-lab-dialog] iframe.code-lab-frame");
+const consoleOf = (page: Page) => page.getByTestId("code-lab-console");
+const status = (page: Page) => page.getByTestId("code-lab-status");
+
+async function replaceCode(page: Page, code: string) {
+  await page.getByTestId("code-lab-editor").fill(code);
+}
+
+test.beforeEach(async ({ page }) => {
+  await page.goto(POST);
+  await expect(page.locator(".code-lab-play").first()).toBeVisible();
+});
+
+test("작성자가 표시한 블록에만 재생 버튼이 있고 기존 렌더링은 유지된다", async ({
+  page,
+}) => {
+  await expect(page.locator(".code-lab-play")).toHaveCount(8);
+  await expect(page.locator(".code-lab-note")).toHaveCount(2);
+  await expect(page.locator(".code-lab-note").first()).toContainText(
+    "버전 9이 없습니다",
+  );
+  await expect(page.locator(".code-lab-note").last()).toContainText(
+    "rust 코드는 브라우저 실행을 지원하지 않습니다",
+  );
+  const plain = page
+    .locator(".toastui-editor-contents pre")
+    .filter({ hasText: "int main(void) { return 0; }" });
+  await expect(plain).toHaveCount(1);
+  await expect(
+    page.locator(".code-lab-block pre", {
+      hasText: "int main(void) { return 0; }",
+    }),
+  ).toHaveCount(0);
+  await expect(page.locator('img[alt="Mermaid Diagram"]')).toHaveCount(1);
+  await page.locator("details summary", { hasText: "접힌 예제" }).click();
+  await expect(
+    block(page, "접힌 블록").locator(".code-lab-play"),
+  ).toBeVisible();
+});
+
+test("HTML 실험: 최초 자동 실행, 수정 후 수동 실행, 닫고 다시 열면 원문으로 초기화", async ({
+  page,
+}) => {
+  const requests: { url: string; body: string | null }[] = [];
+  page.on("request", (req) =>
+    requests.push({ url: req.url(), body: req.postData() }),
+  );
+  const { play } = await openLab(page, 'getElementById("inc")');
+  await expect(status(page)).toHaveText("완료");
+  await expect(frame(page).locator("#msg")).toHaveText("0회");
+  await frame(page).locator("#inc").click();
+  await expect(frame(page).locator("#msg")).toHaveText("1회");
+  await expect(consoleOf(page)).toContainText("클릭 1");
+  const dom = page.getByTestId("code-lab-dom");
+  await expect(dom).toContainText("<li>");
+  await expect(dom).toContainText('"클릭 1"');
+  await expect(dom).not.toContainText("data-slog-lab");
+
+  const editor = page.getByTestId("code-lab-editor");
+  const original = await editor.inputValue();
+  await replaceCode(page, original.replaceAll("회", "번"));
+  await page.waitForTimeout(300);
+  await expect(frame(page).locator("#msg")).toHaveText("1회");
+  await page.getByTestId("code-lab-run").click();
+  await expect(frame(page).locator("#msg")).toHaveText("0번");
+  await expect(consoleOf(page)).not.toContainText("클릭 1");
+
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("code-lab-dialog")).toHaveCount(0);
+  await expect(play).toBeFocused();
+  await expect(page.locator("iframe.code-lab-frame")).toHaveCount(0);
+
+  await play.click();
+  await expect(editor).toHaveValue(original);
+  await expect(frame(page).locator("#msg")).toHaveText("0회");
+  await expect(consoleOf(page)).toHaveText("출력이 없습니다.");
+
+  const foreign = requests.filter(
+    ({ url }) =>
+      !url.startsWith("http://localhost:3007/") &&
+      !url.startsWith("http://127.0.0.1:8097/") &&
+      !url.startsWith("data:") &&
+      !url.startsWith("blob:") &&
+      !url.startsWith("about:"),
+  );
+  expect(foreign).toEqual([]);
+  expect(
+    requests.filter(({ body }) => body?.includes("getElementById")),
+  ).toEqual([]);
+});
+
+test("웹 렌더링 기본 글꼴은 Pretendard이고 작성 CSS로 덮어쓸 수 있다", async ({
+  page,
+}) => {
+  await openLab(page, "작성자 글꼴");
+  const view = frame(page);
+  await expect(view.locator("#base")).toBeVisible();
+  const fonts = await view.locator("body").evaluate(async () => {
+    await document.fonts.ready;
+    await document.fonts.load('16px "Pretendard Variable"');
+    return {
+      base: getComputedStyle(document.getElementById("base")!).fontFamily,
+      custom: getComputedStyle(document.getElementById("custom")!).fontFamily,
+      loaded: document.fonts.check('16px "Pretendard Variable"'),
+    };
+  });
+  expect(fonts.base).toContain("Pretendard Variable");
+  expect(fonts.custom).toBe("serif");
+  expect(fonts.loaded).toBe(true);
+  const editorFont = await page
+    .getByTestId("code-lab-editor")
+    .evaluate((el) => getComputedStyle(el).fontFamily);
+  expect(editorFont).not.toContain("Pretendard");
+});
+
+test("JavaScript: 선입력, 과다 출력, 중지, 오래된 결과 폐기", async ({
+  page,
+}) => {
+  await openLab(page, "const age = Number(prompt());");
+  await expect(status(page)).toHaveText("완료");
+  await expect(consoleOf(page)).toContainText("안녕 null 1");
+  await page.getByTestId("code-lab-input").fill("민수\n20");
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText("안녕 민수 21");
+  await expect(consoleOf(page)).toContainText("{list: [1, 2, 3]}");
+
+  await replaceCode(page, "for (let i = 0; i < 2000; i++) console.log(i);");
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText("이후 출력은 생략합니다");
+  await expect(consoleOf(page)).not.toContainText("1999");
+
+  await replaceCode(page, "while (true) {}");
+  await page.getByTestId("code-lab-run").click();
+  await expect(status(page)).toHaveText("실행 중");
+  expect(await page.evaluate(() => 1 + 1)).toBe(2);
+  await page.getByTestId("code-lab-stop").click();
+  await expect(status(page)).toContainText("중지됨");
+
+  await replaceCode(
+    page,
+    'setTimeout(() => console.log("늦은 결과"), 400); console.log("첫 실행");',
+  );
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText("첫 실행");
+  await replaceCode(page, 'console.log("새 실행");');
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText("새 실행");
+  await page.waitForTimeout(800);
+  await expect(consoleOf(page)).not.toContainText("늦은 결과");
+});
+
+test("TypeScript: 브라우저에서 변환해 실행하고 컴파일 오류를 표시한다", async ({
+  page,
+}) => {
+  await openLab(page, "interface Point");
+  await expect(consoleOf(page)).toContainText("{x: 4, y: 6}");
+  await replaceCode(page, "const x: = 1;");
+  await page.getByTestId("code-lab-run").click();
+  await expect(status(page)).toContainText("컴파일 오류");
+  await expect(consoleOf(page)).toContainText("1행");
+});
+
+test("React: 렌더링·실제 DOM·React VDOM 패널이 서로 다른 데이터를 보인다", async ({
+  page,
+}) => {
+  const { dialog } = await openLab(page, "function Counter");
+  await expect(frame(page).locator("button")).toHaveText("count 0");
+  await frame(page).locator("button").click();
+  await expect(frame(page).locator("button")).toHaveText("count 2");
+
+  const vdom = page.getByTestId("code-lab-vdom");
+  await expect(vdom).toContainText("<App>");
+  await expect(vdom).toContainText("<Counter>");
+  await expect(vdom).toContainText("step=2");
+  await expect(vdom).toContainText("state[0]=2");
+  await expect(vdom).toContainText("react-dom 19.2.3");
+
+  const dom = page.getByTestId("code-lab-dom");
+  await expect(dom).toContainText('<button>"count ""2"');
+  await expect(dom).toContainText('<div id="root">');
+  await expect(dom).not.toContainText("Counter");
+  await expect(vdom).not.toContainText('id="root"');
+  await expect(dialog.locator('[data-panel="render"]')).toBeVisible();
+
+  await replaceCode(
+    page,
+    "export default function App() { while (true) {} return null; }",
+  );
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText(
+    "반복문이 1.5초를 넘어 중단했습니다",
+    // React 는 렌더 오류 뒤 한 번 더 렌더하므로 제한 시간이 두 번 걸린다.
+    { timeout: 15_000 },
+  );
+  await expect(status(page)).toContainText("렌더링 중 오류");
+  expect(await page.evaluate(() => 1 + 1)).toBe(2);
+});
+
+test("React+Tailwind 킷은 별도 킷으로 Tailwind 클래스를 적용한다", async ({
+  page,
+}) => {
+  await openLab(page, "테일윈드");
+  const color = await frame(page)
+    .locator("#tw")
+    .evaluate((el) => getComputedStyle(el).color);
+  expect(color).not.toBe("rgb(0, 0, 0)");
+  const weight = await frame(page)
+    .locator("#tw")
+    .evaluate((el) => getComputedStyle(el).fontWeight);
+  expect(weight).toBe("700");
+});
+
+test("C: 선입력과 실제 실행 추적으로 배열·포인터·할당/해제를 표시한다", async ({
+  page,
+}) => {
+  await openLab(page, "malloc(sizeof(int) * n)");
+  await expect(status(page)).toContainText("완료");
+  await expect(consoleOf(page)).toContainText("n=3 p=20 last=4");
+  await page.getByTestId("code-lab-input").fill("4");
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText("n=4 p=20 last=9");
+  await expect(consoleOf(page)).toContainText("종료 코드 0");
+  const memory = page.getByTestId("code-lab-memory");
+  await expect(memory).toContainText("heap#1");
+  await expect(memory).toContainText("해제됨");
+
+  await memory.getByRole("button", { name: "처음 단계" }).click();
+  await expect(page.getByTestId("code-lab-memory-step")).toContainText(
+    "단계 1/",
+  );
+  await expect(memory).toContainText("할당된 블록 없음");
+  const slider = memory.getByRole("slider", { name: "실행 단계" });
+  const max = Number(await slider.getAttribute("max"));
+  for (let i = 0; i < max; i++) {
+    await memory.getByRole("button", { name: "다음 단계" }).click();
+    if (await memory.getByText("heap#1").first().isVisible()) break;
+  }
+  await expect(memory).toContainText("heap#1");
+  await expect(memory).toContainText("arr");
+  await expect(memory).toContainText("→ arr[1]");
+  await expect(memory).not.toContainText("해제됨");
+
+  await replaceCode(page, "int main( {");
+  await page.getByTestId("code-lab-run").click();
+  await expect(status(page)).toContainText("컴파일 오류");
+  await expect(consoleOf(page)).toContainText("1행");
+
+  await replaceCode(page, "int main(void) { while (1) {} }");
+  await page.getByTestId("code-lab-run").click();
+  await expect(status(page)).toContainText("중지됨", { timeout: 20_000 });
+});
+
+test("패널 열고 닫기·배치·크기 조절은 기억하고 코드와 입력은 기억하지 않는다", async ({
+  page,
+}) => {
+  const { play } = await openLab(page, "malloc(sizeof(int) * n)");
+  const dialog = page.getByTestId("code-lab-dialog");
+  await expect(dialog.locator("[data-panel]")).toHaveCount(4);
+  await dialog.getByRole("button", { name: "메모리 패널 닫기" }).click();
+  await expect(dialog.locator('[data-panel="memory"]')).toHaveCount(0);
+  await expect(
+    dialog.getByRole("button", { name: "메모리", exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
+  await page.getByTestId("code-lab-layout").selectOption("stack");
+  const handle = dialog.getByRole("separator").first();
+  const before = Number(await handle.getAttribute("aria-valuenow"));
+  await handle.focus();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  const after = Number(await handle.getAttribute("aria-valuenow"));
+  expect(after).toBeGreaterThan(before);
+  await replaceCode(page, "// 임시 수정");
+  await page.getByTestId("code-lab-input").fill("7");
+  await page.getByTestId("code-lab-close").click();
+  await expect(play).toBeFocused();
+
+  await page.reload();
+  await openLab(page, "malloc(sizeof(int) * n)");
+  await expect(page.getByTestId("code-lab-layout")).toHaveValue("stack");
+  await expect(dialog.locator('[data-panel="memory"]')).toHaveCount(0);
+  await expect(dialog.getByRole("separator").first()).toHaveAttribute(
+    "aria-valuenow",
+    String(after),
+  );
+  await expect(page.getByTestId("code-lab-editor")).toHaveValue(/malloc/);
+  await expect(page.getByTestId("code-lab-input")).toHaveValue("");
+  await dialog.getByRole("button", { name: "메모리", exact: true }).click();
+  await expect(dialog.locator('[data-panel="memory"]')).toBeVisible();
+
+  const stored = await page.evaluate(() =>
+    Object.entries(localStorage).filter(([key]) =>
+      key.startsWith("slog.codeLab"),
+    ),
+  );
+  expect(JSON.stringify(stored)).not.toContain("malloc");
+});
+
+test("접힌 블록과 모바일 화면에서도 실험을 열고 닫는다", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 });
+  await page.locator("details summary", { hasText: "접힌 예제" }).click();
+  await openLab(page, "접힌 블록");
+  await expect(consoleOf(page)).toContainText("접힌 블록");
+  const box = await page.getByTestId("code-lab-dialog").boundingBox();
+  expect(box!.width).toBeLessThanOrEqual(390);
+  await page.getByTestId("code-lab-close").click();
+  await expect(page.getByTestId("code-lab-dialog")).toHaveCount(0);
+});

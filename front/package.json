@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "node scripts/build-code-lab.mjs && next dev",
+    "build": "node scripts/build-code-lab.mjs && next build",
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write . --ignore-path .prettierignore",
@@ -12,7 +12,8 @@
     "test:speech": "node --test tests/speech/engine.test.mjs tests/speech/math.test.mjs tests/speech/pronunciation.test.mjs",
     "check": "pnpm run format && pnpm run tsc && pnpm run lint",
     "e2e": "playwright test",
-    "e2e:ui": "playwright test --ui"
+    "e2e:ui": "playwright test --ui",
+    "build:code-lab": "node scripts/build-code-lab.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -47,13 +48,16 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@babel/standalone": "^8.0.10",
     "@playwright/test": "^1.62.0",
+    "@tailwindcss/browser": "4.1.18",
     "@tailwindcss/postcss": "^4",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
+    "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.1.2",
     "prettier": "^3.8.0",

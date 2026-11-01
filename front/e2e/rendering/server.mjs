@@ -1,6 +1,7 @@
 // 실제 저장/로그인 없이 SSR과 편집 화면에 동일한 고정 데이터를 제공한다.
 import { createServer } from "node:http";
 
+import { codeLabPost } from "./code-lab-fixtures.mjs";
 import { bilingualPost, post, speechPost, umlPost } from "./fixtures.mjs";
 import { fencedMarpPost, marpPost, mixedPost } from "./marp-fixtures.mjs";
 
@@ -31,6 +32,8 @@ createServer((req, res) => {
     res.end(JSON.stringify(mixedPost));
   } else if (path === "/post/api/v1/posts/7" && req.method === "GET") {
     res.end(JSON.stringify(fencedMarpPost));
+  } else if (path === "/post/api/v1/posts/8" && req.method === "GET") {
+    res.end(JSON.stringify(codeLabPost));
   } else if (path === "/member/api/v1/auth/me") {
     res.end(
       JSON.stringify({
