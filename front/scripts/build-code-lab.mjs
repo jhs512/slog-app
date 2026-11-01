@@ -1,10 +1,20 @@
 // 코드 실험의 브라우저 런타임을 public/code-lab/ 에 만든다. dev/build 전에 실행된다.
 // 사용자 코드는 이 파일들을 받아 브라우저 안에서만 컴파일·실행한다.
 import { build } from "esbuild";
-import { copyFile, mkdir } from "node:fs/promises";
+import { createReadStream, createWriteStream } from "node:fs";
+import {
+  copyFile,
+  mkdir,
+  readFile,
+  readdir,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
+import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
+import { createGzip } from "node:zlib";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const out = join(root, "public", "code-lab");
@@ -17,7 +27,6 @@ const bundles = [
   ["codeLab/sandbox/runtime.ts", "runtime.js"],
   ["codeLab/sandbox/compiler.worker.ts", "compiler.js"],
   ["codeLab/sandbox/react.ts", "react-19.js"],
-  ["business/vendor/c-it/engine/worker.ts", "c-worker.js"],
 ];
 
 await Promise.all(
@@ -49,3 +58,79 @@ await Promise.all([
     join(out, "PretendardVariable.woff2"),
   ),
 ]);
+
+// ─── C·C++ 메모리 비주얼라이저 (Java-memory-visualizer 5762765) ──────────
+// 검증된 추적기·렌더러는 vendor/jmv 에 원본 그대로 두고, 아래 PATCHES 만 복사할 때 적용한다.
+// 원본이 바뀌어 기준 문자열이 없으면 빌드를 멈춰 조용히 어긋나지 않게 한다.
+const jmv = join(out, "jmv");
+const jmvVendor = src("business/vendor/jmv");
+const browsercc = join(jmv, "browsercc-0.1.1");
+await mkdir(join(jmv, "licenses"), { recursive: true });
+await mkdir(browsercc, { recursive: true });
+
+const PATCHES = {
+  "cpp-tracer.js": [
+    // 원본은 사이트 루트의 /web/vendor 를 쓴다. 이 모듈 옆 폴더로 바꾼다.
+    [
+      "const BASE='/web/vendor/browsercc-0.1.1/';",
+      "const BASE=new URL('./browsercc-0.1.1/',import.meta.url).href;",
+    ],
+    // AST 단계 진단은 namespace 감싸기 앞부분 줄 수만큼 밀려 있다. 원래 줄 번호로 되돌린다.
+    [
+      "if(astCompiler.callMain(astArgs)!==0)return diagnostic(errors);",
+      "if(astCompiler.callMain(astArgs)!==0){const shift=(new TextDecoder().decode(new TextEncoder().encode(wrapped.source).slice(0,wrapped.prefixBytes)).match(/\\n/g)||[]).length;return diagnostic(errors.replace(/main\\.cpp:(\\d+):/g,(_,n)=>`main.cpp:${Math.max(1,Number(n)-shift)}:`).replace(/^(\\s*)(\\d+)( \\|)/gm,(_,a,n,b)=>a+Math.max(1,Number(n)-shift)+b));}",
+    ],
+  ],
+};
+
+for (const file of await readdir(jmvVendor)) {
+  if (file === "licenses" || file === "README.md") continue;
+  let text = await readFile(join(jmvVendor, file), "utf8");
+  for (const [from, to] of PATCHES[file] ?? []) {
+    if (!text.includes(from))
+      throw new Error(`${file} 패치 기준이 없습니다: ${from}`);
+    text = text.replace(from, () => to);
+  }
+  await writeFile(join(jmv, file), text);
+}
+for (const file of await readdir(join(jmvVendor, "licenses"))) {
+  await copyFile(
+    join(jmvVendor, "licenses", file),
+    join(jmv, "licenses", file),
+  );
+}
+await copyFile(
+  src("codeLab/sandbox/jmv-worker.js"),
+  join(jmv, "jmv-worker.js"),
+);
+await copyFile(
+  src("codeLab/sandbox/jmv-memory.js"),
+  join(jmv, "jmv-memory.js"),
+);
+
+const ccDist = join(dirname(require.resolve("browsercc/package.json")), "dist");
+for (const file of ["clang.js", "lld.js"]) {
+  await copyFile(join(ccDist, file), join(browsercc, file));
+}
+await copyFile(
+  join(dirname(require.resolve("browsercc/package.json")), "LICENSE"),
+  join(jmv, "licenses", "browsercc-LICENSE"),
+).catch(() => {});
+// 컴파일러·sysroot 는 원본 운영과 같이 gzip 으로 두고 브라우저가 DecompressionStream 으로 푼다.
+// 압축이 오래 걸리므로 원본보다 새 결과가 있으면 다시 만들지 않는다.
+await Promise.all(
+  ["clang.wasm", "lld.wasm", "sysroot.tar"].map(async (file) => {
+    const from = join(ccDist, file);
+    const to = join(browsercc, `${file}.gz`);
+    const [source, target] = await Promise.all([
+      stat(from),
+      stat(to).catch(() => null),
+    ]);
+    if (target && target.mtimeMs >= source.mtimeMs && target.size > 0) return;
+    await pipeline(
+      createReadStream(from),
+      createGzip({ level: 9 }),
+      createWriteStream(to),
+    );
+  }),
+);

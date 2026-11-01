@@ -85,7 +85,7 @@
 
 ## E2E (Playwright) — `front/`
 
-- 코드 실험(실행용 코드 블록) 검증: `pnpm exec playwright test --config playwright.rendering.config.ts e2e/rendering/code-lab.spec.ts` (fixture 글 8번; HTML·JS·TS·React·React+Tailwind·C 실행, DOM/VDOM/메모리 패널, 설정 복원, 외부 요청 없음). 작성법·지원 범위·격리: `docs/code-lab.md`.
+- 코드 실험(실행용 코드 블록) 검증: `pnpm exec playwright test --config playwright.rendering.config.ts e2e/rendering/code-lab.spec.ts` (fixture 글 8번; HTML·JS·TS·React·React+Tailwind·C·C++ 실행, C·C++는 Java-memory-visualizer 추적기, DOM/VDOM/메모리 패널, 설정 복원, 외부 요청 없음). 작성법·지원 범위·격리: `docs/code-lab.md`.
 - 코드 실험 런타임 자산만 다시 만들기: `pnpm build:code-lab` (`public/code-lab/`, git 미포함. `pnpm dev`·`pnpm build`가 먼저 자동 실행)
 - Marp·기존 PPT 회귀 검증: `pnpm exec playwright test --config playwright.rendering.config.ts e2e/rendering/marp.spec.ts` (Docker 없이 읽기 전용 fixture, 저장은 모의 요청; PC/모바일·테마·이미지·코드·에디터·해시 이동 검사). 작성법·지원 범위: `docs/marp.md`.
 - 홈 전용 광고 검증: 테스트용 환경 변수(`NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8097`, `NEXT_PUBLIC_ADSENSE_CLIENT_ID=ca-pub-0000000000000000`, `NEXT_PUBLIC_ADSENSE_SLOT_MAIN=1234567890`)로 `pnpm build` 후 `pnpm exec playwright test --config playwright.ads.config.ts`.

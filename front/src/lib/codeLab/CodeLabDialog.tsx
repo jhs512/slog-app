@@ -4,9 +4,11 @@ import { ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { createPortal } from "react-dom";
 
+import MemoryFrame from "./MemoryFrame";
 import Split, { SplitItem } from "./Split";
 import { ENGINE_PANELS, LabDefinition, PANEL_LABELS, PanelId } from "./lab";
-import { ConsoleView, DomView, MemoryView, VdomView } from "./panels";
+import type { MemoryDoc } from "./memoryDoc";
+import { ConsoleView, DomView, VdomView } from "./panels";
 import type {
   ConsoleEntry,
   Diagnostic,
@@ -14,7 +16,7 @@ import type {
   RunStatus,
   VdomNode,
 } from "./protocol";
-import { MemoryTrace, RunSink, StopRun, startRun } from "./run";
+import { RunSink, StopRun, startRun } from "./run";
 import {
   LAYOUTS,
   LAYOUT_LABELS,
@@ -31,7 +33,7 @@ interface RunOutput {
   diagnostics: Diagnostic[];
   dom: { tree: DomNode; mutations: number } | null;
   vdom: { trees: VdomNode[]; commits: number; renderer: string } | null;
-  memory: MemoryTrace | null;
+  memory: MemoryDoc | null;
 }
 
 const MAX_CONSOLE = 1000;
@@ -232,7 +234,7 @@ export default function CodeLabDialog({
       case "vdom":
         return <VdomView vdom={output.vdom} />;
       case "memory":
-        return <MemoryView key={output.id} trace={output.memory} />;
+        return <MemoryFrame doc={output.memory} />;
       case "console":
         return (
           <ConsoleView

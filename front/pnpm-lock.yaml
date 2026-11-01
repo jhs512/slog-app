@@ -125,6 +125,9 @@ importers:
       babel-plugin-react-compiler:
         specifier: 1.0.0
         version: 1.0.0
+      browsercc:
+        specifier: 0.1.1
+        version: 0.1.1
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -2814,6 +2817,12 @@ packages:
         integrity: sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==,
       }
     engines: { node: ">=8" }
+
+  browsercc@0.1.1:
+    resolution:
+      {
+        integrity: sha512-zKSm2b10XjqRBPkY67rS5FK+YgcXd5CH2GRVwyK2+f7EOQRmHR0IN2lQCvJZQfTytSFbwFmlIpZaxSMFcE+jxw==,
+      }
 
   browserslist@4.28.1:
     resolution:
@@ -7114,6 +7123,8 @@ snapshots:
   braces@3.0.3:
     dependencies:
       fill-range: 7.1.1
+
+  browsercc@0.1.1: {}
 
   browserslist@4.28.1:
     dependencies:

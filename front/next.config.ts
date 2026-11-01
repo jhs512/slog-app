@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
-  // 코드 실험 iframe 은 출처가 없으므로(null origin) 글꼴 같은 CORS 요청을 이 경로에만 허용한다.
+  // 코드 실험 iframe 은 출처가 없으므로(null origin) 글꼴·module 스크립트 같은 CORS 요청을 이 경로에만 허용한다.
   async headers() {
     return [
       {

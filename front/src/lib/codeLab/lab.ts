@@ -21,7 +21,13 @@ export const PANEL_LABELS: Record<PanelId, string> = {
   input: "입력",
 };
 
-export type LabEngine = "html" | "javascript" | "typescript" | "react" | "c";
+export type LabEngine =
+  | "html"
+  | "javascript"
+  | "typescript"
+  | "react"
+  | "c"
+  | "cpp";
 
 /** 엔진별로 실제 데이터를 공급할 수 있는 패널만 노출한다. */
 export const ENGINE_PANELS: Record<LabEngine, PanelId[]> = {
@@ -30,6 +36,7 @@ export const ENGINE_PANELS: Record<LabEngine, PanelId[]> = {
   typescript: ["code", "console", "input"],
   react: ["code", "render", "dom", "vdom", "console"],
   c: ["code", "memory", "console", "input"],
+  cpp: ["code", "memory", "console", "input"],
 };
 
 export const ENGINE_TITLES: Record<LabEngine, string> = {
@@ -38,6 +45,7 @@ export const ENGINE_TITLES: Record<LabEngine, string> = {
   typescript: "TypeScript",
   react: "React",
   c: "C",
+  cpp: "C++",
 };
 
 export interface LabDefinition {
@@ -61,6 +69,9 @@ const RUN_LANGUAGES: Record<string, { engine: LabEngine; highlight: string }> =
     ts: { engine: "typescript", highlight: "typescript" },
     typescript: { engine: "typescript", highlight: "typescript" },
     c: { engine: "c", highlight: "c" },
+    cpp: { engine: "cpp", highlight: "cpp" },
+    "c++": { engine: "cpp", highlight: "cpp" },
+    cxx: { engine: "cpp", highlight: "cpp" },
   };
 
 /**

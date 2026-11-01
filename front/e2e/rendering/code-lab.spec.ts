@@ -30,7 +30,7 @@ test.beforeEach(async ({ page }) => {
 test("작성자가 표시한 블록에만 재생 버튼이 있고 기존 렌더링은 유지된다", async ({
   page,
 }) => {
-  await expect(page.locator(".code-lab-play")).toHaveCount(8);
+  await expect(page.locator(".code-lab-play")).toHaveCount(10);
   await expect(page.locator(".code-lab-note")).toHaveCount(2);
   await expect(page.locator(".code-lab-note").first()).toContainText(
     "버전 9이 없습니다",
@@ -226,44 +226,59 @@ test("React+Tailwind 킷은 별도 킷으로 Tailwind 클래스를 적용한다"
   expect(weight).toBe("700");
 });
 
-test("C: 선입력과 실제 실행 추적으로 배열·포인터·할당/해제를 표시한다", async ({
+const memoryView = (page: Page) =>
+  page.frameLocator("[data-testid=code-lab-memory] iframe");
+
+async function lastStep(page: Page) {
+  await memoryView(page).getByRole("button", { name: "마지막 »" }).click();
+}
+
+test("C: 선입력과 JSCPP 추적으로 배열·포인터·malloc/free 메모리를 표시한다", async ({
   page,
 }) => {
   await openLab(page, "malloc(sizeof(int) * n)");
-  await expect(status(page)).toContainText("완료");
-  await expect(consoleOf(page)).toContainText("n=3 p=20 last=4");
+  // 원본 JSCPP 경로와 같이 선입력 없이 scanf 가 EOF 를 만나면 실행 오류로 끝난다.
+  await expect(status(page)).toContainText("예외로 종료", { timeout: 30_000 });
+  await expect(consoleOf(page)).toContainText("Memory overflow");
   await page.getByTestId("code-lab-input").fill("4");
   await page.getByTestId("code-lab-run").click();
   await expect(consoleOf(page)).toContainText("n=4 p=20 last=9");
-  await expect(consoleOf(page)).toContainText("종료 코드 0");
-  const memory = page.getByTestId("code-lab-memory");
-  await expect(memory).toContainText("heap#1");
-  await expect(memory).toContainText("해제됨");
-
-  await memory.getByRole("button", { name: "처음 단계" }).click();
-  await expect(page.getByTestId("code-lab-memory-step")).toContainText(
-    "단계 1/",
-  );
-  await expect(memory).toContainText("할당된 블록 없음");
-  const slider = memory.getByRole("slider", { name: "실행 단계" });
-  const max = Number(await slider.getAttribute("max"));
-  for (let i = 0; i < max; i++) {
-    await memory.getByRole("button", { name: "다음 단계" }).click();
-    if (await memory.getByText("heap#1").first().isVisible()) break;
-  }
-  await expect(memory).toContainText("heap#1");
-  await expect(memory).toContainText("arr");
-  await expect(memory).toContainText("→ arr[1]");
-  await expect(memory).not.toContainText("해제됨");
+  await expect(consoleOf(page)).toContainText("정상 종료");
+  const view = memoryView(page);
+  await expect(view.locator(".tv-slider")).toBeVisible();
+  await lastStep(page);
+  await expect(view.locator(".tv-memory-summary")).toContainText("malloc 1");
+  await expect(view.locator(".tv-memory-summary")).toContainText("free 1");
+  await expect(view.locator(".viz")).toContainText("arr");
 
   await replaceCode(page, "int main( {");
   await page.getByTestId("code-lab-run").click();
   await expect(status(page)).toContainText("컴파일 오류");
-  await expect(consoleOf(page)).toContainText("1행");
+  await expect(consoleOf(page)).toContainText("오류");
 
   await replaceCode(page, "int main(void) { while (1) {} }");
   await page.getByTestId("code-lab-run").click();
-  await expect(status(page)).toContainText("중지됨", { timeout: 20_000 });
+  await expect(status(page)).toHaveText("실행 중");
+  expect(await page.evaluate(() => 1 + 1)).toBe(2);
+  await page.getByTestId("code-lab-stop").click();
+  await expect(status(page)).toContainText("중지됨");
+});
+
+test("C: typedef struct 연결 리스트의 할당·해제를 단계별로 본다", async ({
+  page,
+}) => {
+  await openLab(page, "typedef struct Node");
+  await expect(status(page)).toHaveText("완료", { timeout: 30_000 });
+  await expect(consoleOf(page)).toContainText(/10\s+20\s+30/);
+  const view = memoryView(page);
+  await lastStep(page);
+  await expect(view.locator(".tv-memory-summary")).toContainText("malloc 3");
+  await expect(view.locator(".tv-memory-summary")).toContainText("free 3");
+  await view.getByRole("button", { name: "« 처음" }).click();
+  const slider = view.locator(".tv-slider");
+  const max = Number(await slider.getAttribute("max"));
+  await slider.fill(String(Math.floor(max / 2)));
+  await expect(view.locator(".viz")).toContainText("Node");
 });
 
 test("C: 실행 중 닫고 다시 열면 이전 실행 없이 원문으로 처음부터 실행한다", async ({
@@ -276,13 +291,57 @@ test("C: 실행 중 닫고 다시 열면 이전 실행 없이 원문으로 처�
   await expect(page.getByTestId("code-lab-dialog")).toHaveCount(0);
   await play.click();
   await expect(page.getByTestId("code-lab-editor")).toHaveValue(/malloc/);
-  await expect(consoleOf(page)).toContainText("n=3 p=20 last=4");
-  await expect(consoleOf(page)).not.toContainText("단계 제한");
+  await expect(page.getByTestId("code-lab-input")).toHaveValue("");
+  await expect(status(page)).toContainText("예외로 종료", { timeout: 30_000 });
   await expect(
-    consoleOf(page).locator("div", { hasText: "종료 코드" }),
+    consoleOf(page).locator("div", { hasText: "예외로 종료" }),
   ).toHaveCount(1);
-  const memory = page.getByTestId("code-lab-memory");
-  await expect(memory.locator('[data-freed="true"]')).toHaveCount(1);
+  await expect(consoleOf(page)).not.toContainText("시간 제한");
+});
+
+test("C++: 브라우저 Clang으로 컴파일하고 선입력·참조·new/delete 메모리를 표시한다", async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const requests: string[] = [];
+  page.on("request", (req) => requests.push(req.url()));
+  await openLab(page, "std::cin >> n");
+  await expect(status(page)).toHaveText("완료", { timeout: 180_000 });
+  await expect(consoleOf(page)).toContainText("15 14");
+  await page.getByTestId("code-lab-input").fill("5");
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText("11 10", { timeout: 120_000 });
+  const view = memoryView(page);
+  await lastStep(page);
+  await expect(view.locator(".viz")).toContainText("해제됨");
+  await view.getByRole("button", { name: "« 처음" }).click();
+  const slider = view.locator(".tv-slider");
+  const max = Number(await slider.getAttribute("max"));
+  let sawNode = false;
+  for (let i = 0; i <= max && !sawNode; i++) {
+    await slider.fill(String(i));
+    sawNode = (await view.locator(".viz").textContent())!.includes("Node");
+  }
+  expect(sawNode).toBe(true);
+  expect(
+    requests.some((url) =>
+      url.endsWith("/code-lab/jmv/browsercc-0.1.1/clang.wasm.gz"),
+    ),
+  ).toBe(true);
+  expect(
+    requests.filter(
+      (url) =>
+        !url.startsWith("http://localhost:3007/") &&
+        !url.startsWith("http://127.0.0.1:8097/") &&
+        !/^(data|blob|about):/.test(url) &&
+        !url.includes("mermaid.ink"),
+    ),
+  ).toEqual([]);
+
+  await replaceCode(page, "int main() { int x = ; }");
+  await page.getByTestId("code-lab-run").click();
+  await expect(status(page)).toContainText("컴파일 오류", { timeout: 120_000 });
+  await expect(consoleOf(page)).toContainText("1행");
 });
 
 test("사용자 코드의 네트워크 요청은 sandbox 정책으로 막힌다", async ({
@@ -313,6 +372,7 @@ test("패널 열고 닫기·배치·크기 조절은 기억하고 코드와 입�
   const { play } = await openLab(page, "malloc(sizeof(int) * n)");
   const dialog = page.getByTestId("code-lab-dialog");
   await expect(dialog.locator("[data-panel]")).toHaveCount(4);
+  await expect(status(page)).toContainText("예외로 종료", { timeout: 30_000 });
   await dialog.getByRole("button", { name: "메모리 패널 닫기" }).click();
   await expect(dialog.locator('[data-panel="memory"]')).toHaveCount(0);
   await expect(

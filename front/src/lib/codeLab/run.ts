@@ -1,14 +1,7 @@
 // 실험 한 번의 실행. 엔진마다 다른 실행 방식을 같은 RunSink 계약 뒤로 숨긴다.
 // 모든 컴파일·실행은 브라우저 안(호스트 워커, sandbox iframe, iframe 안 워커)에서만 일어난다.
-import type { Diagnostic as CDiagnostic } from "../business/vendor/c-it/engine/diagnostics";
-import type {
-  DoneInfo,
-  FromWorker,
-  OutKind,
-  ToWorker,
-} from "../business/vendor/c-it/engine/protocol";
-import { Timeline } from "../business/vendor/c-it/viewmodel/timeline";
 import type { LabDefinition, LabEngine } from "./lab";
+import type { MemoryDoc } from "./memoryDoc";
 import {
   CompileRequest,
   CompileResponse,
@@ -23,20 +16,13 @@ import {
   parseSandboxMessage,
 } from "./protocol";
 
-export interface MemoryTrace {
-  timeline: Timeline;
-  /** 추적이 추가될 때마다 늘어 화면 갱신 기준이 된다. */
-  revision: number;
-  finished: boolean;
-}
-
 export interface RunSink {
   status(status: RunStatus): void;
   console(entry: ConsoleEntry): void;
   diagnostics(items: Diagnostic[]): void;
   dom(tree: DomNode, mutations: number): void;
   vdom(trees: VdomNode[], commits: number, renderer: string): void;
-  memory(trace: MemoryTrace): void;
+  memory(doc: MemoryDoc): void;
 }
 
 export interface RunRequest {
@@ -124,7 +110,7 @@ function inlineJson(value: unknown): string {
   return JSON.stringify(value).replace(/</g, "\\u003c");
 }
 
-type SandboxEngine = Exclude<LabEngine, "c">;
+type SandboxEngine = Exclude<LabEngine, "c" | "cpp">;
 
 const SANDBOX_ENGINES: Record<
   SandboxEngine,
@@ -248,156 +234,127 @@ async function startSandbox(
   frameHost.replaceChildren(iframe);
 }
 
-// ─── C (c-it 인터프리터) ────────────────────────────────
+// ─── C·C++ (Java-memory-visualizer 추적기) ─────────────────
+// C 는 JSCPP 인터프리터, C++ 는 browsercc(Clang 20 + LLD → WASM32/WASI)로 실행한다.
+// 사용자 코드는 JSCPP 가 해석하거나 WASI 가져오기만 받은 WASM 으로 돌아 JS·네트워크에 닿지 않는다.
+// 시간 제한은 원본 language-runtime.js 와 같다. 실행마다 새 워커를 만들고 끝나면 종료한다.
 
-const C_WALL_MS = 15_000;
-
-const OUTPUT_LEVELS: Record<OutKind, ConsoleEntry["level"]> = {
-  out: "log",
-  err: "error",
-  in: "info",
-  sys: "system",
+const JMV_LIMITS = {
+  loadMs: 120_000,
+  c: 40_000,
+  cpp: 60_000,
 };
 
-function cDiagnostics(items: CDiagnostic[]): Diagnostic[] {
-  return items
-    .filter((item) => item.file === undefined || item.file === "main.c")
-    .map((item) => ({
-      line: item.line,
-      col: item.col,
-      message: item.message,
-      severity: item.severity === "error" ? "error" : "warning",
-    }));
-}
+const JMV_SUMMARY: Record<string, string> = {
+  ok: "정상 종료",
+  uncaught_exception: "예외로 종료",
+  step_limit: "단계 제한으로 중단",
+};
 
-function describeDone(done: DoneInfo): {
-  entry: ConsoleEntry;
-  status: RunStatus;
-} {
-  switch (done.reason) {
-    case "exit":
-      return {
-        entry: {
-          level: "system",
-          text: `프로그램 종료 (종료 코드 ${done.exitCode ?? 0})`,
-        },
-        status: { phase: "done" },
-      };
-    case "error": {
-      const error = done.error;
-      const text = error
-        ? `${error.line}행 실행 오류: ${error.message}`
-        : "실행 오류";
-      return {
-        entry: { level: "error", text },
-        status: { phase: "error", message: text },
-      };
-    }
-    case "limit":
-      return {
-        entry: {
-          level: "system",
-          text: "실행 단계 제한을 넘어 중지했습니다. 무한 반복인지 확인하세요.",
-        },
-        status: { phase: "stopped", message: "실행 단계 제한" },
-      };
-    case "stopped":
-      return {
-        entry: { level: "system", text: "실행을 중지했습니다." },
-        status: { phase: "stopped", message: "중지" },
-      };
+function reportMemoryDoc(doc: MemoryDoc, sink: RunSink) {
+  const diagnostics: Diagnostic[] = (doc.problems ?? []).map((problem) => ({
+    line: problem.line,
+    col: 1,
+    message: problem.message,
+    severity: problem.error ? "error" : "warning",
+  }));
+  if (diagnostics.length) sink.diagnostics(diagnostics);
+  const last = doc.trace?.at(-1);
+  if (last?.stdout) sink.console({ level: "log", text: last.stdout });
+  const failure = last?.exception_msg ?? doc.message;
+  if (doc.status !== "ok" && doc.status !== "compile_error" && failure) {
+    sink.console({ level: "error", text: failure });
   }
+  if (doc.traceStride && doc.traceStride > 1) {
+    sink.console({
+      level: "system",
+      text: `반복 구간은 최대 ${doc.traceStride}단계 간격으로 기록했습니다 (전체 ${doc.traceTotalSteps}단계).`,
+    });
+  }
+  sink.memory(doc);
+  if (doc.status === "compile_error") {
+    sink.status({ phase: "error", message: "컴파일 오류" });
+    return;
+  }
+  const summary = JMV_SUMMARY[doc.status] ?? doc.status;
+  sink.console({
+    level: "system",
+    text: `${summary} · ${doc.trace?.length ?? 0}단계`,
+  });
+  sink.status(
+    doc.status === "ok"
+      ? { phase: "done" }
+      : doc.status === "step_limit"
+        ? { phase: "stopped", message: summary }
+        : { phase: "error", message: summary },
+  );
 }
 
-function startC(
+function startMemoryVisualizer(
   request: RunRequest,
+  language: "c" | "cpp",
   sink: RunSink,
   onCleanup: (cleanup: () => void) => void,
 ) {
-  // 실행마다 새 워커를 만들어 이전 실행의 메모리·입력이 남지 않게 한다.
-  const worker = new Worker(assetUrl("c-worker.js"), {
-    name: "slog-code-lab-c",
+  const worker = new Worker(assetUrl("jmv/jmv-worker.js"), {
+    type: "module",
+    name: `slog-code-lab-${language}`,
   });
-  const timeline = new Timeline();
-  const trace: MemoryTrace = { timeline, revision: 0, finished: false };
-  const lines = [...request.input];
-  const id = 1;
-  const send = (message: ToWorker) => worker.postMessage(message);
+  let timer = 0;
   const finish = () => {
-    window.clearTimeout(wall);
+    window.clearTimeout(timer);
     worker.terminate();
   };
-  const wall = window.setTimeout(() => {
-    finish();
-    trace.finished = true;
-    sink.memory({ ...trace, revision: ++trace.revision });
-    sink.console({
-      level: "system",
-      text: `실행 시간이 ${C_WALL_MS / 1000}초를 넘어 중지했습니다.`,
-    });
-    sink.status({ phase: "stopped", message: "시간 제한" });
-  }, C_WALL_MS);
+  const limit = (ms: number) => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => {
+      finish();
+      sink.console({
+        level: "system",
+        text: `실행 시간이 ${ms / 1000}초를 넘어 중지했습니다.`,
+      });
+      sink.status({ phase: "stopped", message: "시간 제한" });
+    }, ms);
+  };
   onCleanup(finish);
-
-  worker.onmessage = (event: MessageEvent<FromWorker>) => {
+  sink.console({
+    level: "system",
+    text:
+      language === "cpp"
+        ? "C++ 컴파일러(Clang/WASM)를 준비합니다. 처음 실행할 때 약 30MB를 내려받습니다."
+        : "C 인터프리터를 준비합니다.",
+  });
+  worker.onmessage = (
+    event: MessageEvent<
+      | { type: "ready" }
+      | { type: "result"; doc: MemoryDoc }
+      | { type: "error"; message: string }
+    >,
+  ) => {
     const message = event.data;
-    if (message.id !== id) return;
-    switch (message.type) {
-      case "diagnostics":
-        sink.diagnostics(cDiagnostics(message.diagnostics));
-        break;
-      case "program":
-        timeline.setProgram(message.program);
-        sink.memory({ ...trace, revision: ++trace.revision });
-        break;
-      case "trace":
-        timeline.addTypes(message.types);
-        timeline.addSteps(message.steps);
-        for (const step of message.steps) {
-          for (const segment of step.out ?? []) {
-            sink.console({
-              level: OUTPUT_LEVELS[segment.k],
-              text: segment.s,
-            });
-          }
-        }
-        sink.memory({ ...trace, revision: ++trace.revision });
-        break;
-      case "needInput":
-        send({ type: "input", id, text: lines.length ? lines.shift()! : null });
-        break;
-      case "done": {
-        finish();
-        trace.finished = true;
-        sink.memory({ ...trace, revision: ++trace.revision });
-        if (message.done.error?.kind === "compile") {
-          sink.status({ phase: "error", message: "컴파일 오류" });
-          break;
-        }
-        const { entry, status } = describeDone(message.done);
-        for (const leak of message.done.leaks) {
-          sink.console({
-            level: "warn",
-            text: `해제하지 않은 메모리: ${leak.size}바이트 (${leak.line}행에서 할당)`,
-          });
-        }
-        sink.console(entry);
-        sink.status(status);
-        break;
-      }
-      case "fatal":
-        finish();
-        sink.console({ level: "error", text: message.message });
-        sink.status({ phase: "error", message: "C 엔진 오류" });
-        break;
+    if (message.type === "ready") {
+      sink.status({ phase: "running" });
+      limit(JMV_LIMITS[language]);
+    } else if (message.type === "result") {
+      finish();
+      reportMemoryDoc(message.doc, sink);
+    } else if (message.type === "error") {
+      finish();
+      sink.console({ level: "error", text: message.message });
+      sink.status({ phase: "error", message: "실행 오류" });
     }
   };
   worker.onerror = (event) => {
     event.preventDefault();
     finish();
-    sink.status({ phase: "error", message: "C 엔진을 불러오지 못했습니다." });
+    sink.status({
+      phase: "error",
+      message: "실행 엔진을 불러오지 못했습니다.",
+    });
   };
-  send({ type: "run", id, code: request.source });
+  limit(JMV_LIMITS.loadMs);
+  const stdin = request.input.length ? request.input.join("\n") + "\n" : "";
+  worker.postMessage({ language, source: request.source, stdin });
 }
 
 export function startRun(request: RunRequest, sink: RunSink): StopRun {
@@ -418,9 +375,8 @@ export function startRun(request: RunRequest, sink: RunSink): StopRun {
   };
 
   guarded.status({ phase: "preparing" });
-  if (request.lab.engine === "c") {
-    guarded.status({ phase: "running" });
-    startC(request, guarded, onCleanup);
+  if (request.lab.engine === "c" || request.lab.engine === "cpp") {
+    startMemoryVisualizer(request, request.lab.engine, guarded, onCleanup);
   } else {
     startSandbox(request, guarded, () => stopped, onCleanup).catch((error) => {
       guarded.status({ phase: "error", message: String(error) });

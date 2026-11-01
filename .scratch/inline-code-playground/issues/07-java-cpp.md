@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: 브라우저 컴파일과 시각화 후보 검증; 03: 독립 패널 배치와 브라우저 설정 복원
 
-**Status:** needs-info
+**Status:** resolved
 
 - [ ] 지원한 언어는 단일 파일 소스 컴파일·선입력·콘솔·진단을 실제 브라우저에서 완주한다.
 - [ ] 실제 추적을 제공하는 경우에만 메모리 패널을 노출한다.
@@ -14,3 +14,4 @@
 ## Comments
 
 - 2026-11-01 Claude: C++는 wasm-clang으로 브라우저 컴파일·선입력 실행 VERIFIED(`../runtime-proofs.md`)지만 아직 연결하지 않았다. 결정 필요: 60MB(gzip 19MB) 자산을 저장소에 넣을지, 빌드 때 받을지, 별도 정적 호스트에 둘지. `std::sort` 링크 실패(__lttf2)도 남아 있다. Java는 stdin 없음·예외 트랩·라이선스 불명으로 제외, CheerpJ는 자체 호스팅 유료로 제외. 두 언어 모두 허위 재생 버튼 없음(`java run`/`cpp run`은 안내 문구). 메모리 패널은 C에만 노출.
+- 2026-11-01 Claude (사용자 지시 반영): C++는 사용자가 운영하는 Java-memory-visualizer(`codex/cloudflare-sharing` 5762765)의 browsercc 0.1.1 경로(Clang 20 + LLD → WASM32/WASI, Clang AST 계측)를 그대로 재사용해 `cpp run`/`c++ run`/`cxx run`으로 연결했다. 자산은 npm `browsercc@0.1.1`에서 빌드 때 gzip(약 29MB)으로 만들어 정적 배포하며 원본 운영 자산과 내용이 같다. 실제 브라우저 e2e로 소스 수정→컴파일→선입력(`cin`)→참조·new/delete 해제 메모리→컴파일 오류 줄 번호를 검증했다. 원본의 AST 단계 진단 줄 번호 밀림 버그는 빌드 패치로 보정했다. Java는 이번 범위에서 제외 유지(원본 Java는 CheerpJ 공식 CDN 사용 구조라 자체 호스팅 유료 문제와는 별개이며, 후속 검토 대상).

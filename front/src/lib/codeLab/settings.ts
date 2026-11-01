@@ -19,8 +19,23 @@ export interface WorkspaceSettings {
 
 const KEY_PREFIX = "slog.codeLab.settings.v1.";
 
+/** 메모리 시각화는 코드·스택·힙을 함께 그리므로 처음부터 넓게 준다. */
+const MEMORY_WEIGHTS: WorkspaceSettings["weights"] = {
+  code: 0.7,
+  rest: 2.2,
+  memory: 4,
+  console: 1,
+  input: 0.6,
+};
+
 export function defaultSettings(engine: LabEngine): WorkspaceSettings {
-  return { layout: "side", open: [...ENGINE_PANELS[engine]], weights: {} };
+  return {
+    layout: "side",
+    open: [...ENGINE_PANELS[engine]],
+    weights: ENGINE_PANELS[engine].includes("memory")
+      ? { ...MEMORY_WEIGHTS }
+      : {},
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -39,7 +54,9 @@ export function parseSettings(
   const open = Array.isArray(raw.open)
     ? available.filter((id) => (raw.open as unknown[]).includes(id))
     : fallback.open;
-  const weights: WorkspaceSettings["weights"] = {};
+  const weights: WorkspaceSettings["weights"] = isRecord(raw.weights)
+    ? {}
+    : fallback.weights;
   if (isRecord(raw.weights)) {
     for (const key of [...PANEL_IDS, "rest"] as const) {
       const value = raw.weights[key];

@@ -55,13 +55,58 @@ export const cLab = `#include <stdio.h>
 
 int main(void) {
   int n;
-  if (scanf("%d", &n) != 1) n = 3;
+  scanf("%d", &n);
   int arr[3] = {10, 20, 30};
   int *p = &arr[1];
   int *heap = malloc(sizeof(int) * n);
   for (int i = 0; i < n; i++) heap[i] = i * i;
   printf("n=%d p=%d last=%d\\n", n, *p, heap[n - 1]);
   free(heap);
+  return 0;
+}`;
+
+export const cStructLab = `#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct Node {
+  int value;
+  struct Node *next;
+} Node;
+
+int main(void) {
+  Node *head = NULL;
+  for (int i = 3; i >= 1; i--) {
+    Node *node = malloc(sizeof(Node));
+    node->value = i * 10;
+    node->next = head;
+    head = node;
+  }
+  for (Node *p = head; p != NULL; p = p->next) printf("%d\\n", p->value);
+  while (head != NULL) {
+    Node *next = head->next;
+    free(head);
+    head = next;
+  }
+  return 0;
+}`;
+
+export const cppLab = `#include <iostream>
+
+struct Node {
+  int value;
+  Node* next;
+};
+
+int main() {
+  int n;
+  if (!(std::cin >> n)) n = 7;
+  int& alias = n;
+  alias = alias * 2;
+  Node* first = new Node{n, nullptr};
+  Node* second = new Node{n + 1, first};
+  std::cout << second->value << " " << second->next->value << "\\n";
+  delete second;
+  delete first;
   return 0;
 }`;
 
@@ -82,6 +127,9 @@ export const codeLabContent = [
   fence("react-starter-9", "export default () => null;"),
   "## C",
   fence("c run", cLab),
+  fence("c run", cStructLab),
+  "## C++",
+  fence("cpp run", cppLab),
   fence("rust run", 'fn main() { println!("hi"); }'),
   "## 회귀",
   fence("mermaid", "graph TD\n  A --> B"),

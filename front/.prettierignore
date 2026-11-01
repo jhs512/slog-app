@@ -16,7 +16,7 @@ src/global/backend/*/schema.d.ts
 node_modules
 src/lib/business/vendor/*.js
 src/lib/business/vendor/topcit-speech/**
-src/lib/business/vendor/c-it/**
+src/lib/business/vendor/jmv/**
 public/code-lab
 
 # 로그 파일
