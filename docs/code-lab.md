@@ -76,7 +76,8 @@ Java·Rust·Go는 아직 재생 버튼을 주지 않는다(`run`을 붙이면 �
 
 원본 `web/app/`의 추적기·렌더러를 `front/src/lib/business/vendor/jmv/`에 그대로 복사했다(출처·파일 목록·빌드 패치는 그 폴더 `README.md`). 슬로그 쪽은 실행 워커(`sandbox/jmv-worker.js`)와 메모리 패널 iframe(`sandbox/jmv-memory.js`, `MemoryFrame.tsx`)만 새로 만들었다. 시간 제한은 원본 `language-runtime.js`와 같다(런타임 준비 120초, C 실행 40초, C++ 60초). 실행할 때마다 새 Worker를 만들고 결과를 받으면 종료한다. 원본의 실행 중 입력 기능은 쓰지 않고 선입력만 전달한다.
 
-- C++ 컴파일러·링커·sysroot는 gzip 약 29MB이며 C++ 블록을 처음 실행할 때만 내려받는다. 이후에는 브라우저 HTTP 캐시를 쓴다.
+- C++ 컴파일러·링커·sysroot는 gzip 약 29MB이며 C++ 블록을 처음 실행할 때 내려받는다. 버전이 든 경로라 `Cache-Control: immutable`(1년)로 내보내 이후 실행은 재검증 없이 브라우저 캐시를 쓴다. 원본과 같이 실행마다 Worker를 새로 만들므로 압축 해제와 Clang 준비는 매번 다시 한다.
+- 코드와 선입력은 합쳐서 2MB까지 받는다(원본 제한과 같음).
 - C에서 선입력이 모자라 `scanf`가 EOF를 만나면 JSCPP가 `Memory overflow` 실행 오류로 끝난다(원본과 같은 동작). 입력을 읽는 예제는 독자가 입력 패널을 채우고 다시 실행해야 한다.
 - 이전 c-it 엔진은 제거했다. 같은 회귀 예제(선입력·배열·포인터·malloc/free·컴파일 오류·중지·재열기)를 새 엔진으로 다시 통과시켰다.
 
@@ -88,7 +89,7 @@ Java·Rust·Go는 아직 재생 버튼을 주지 않는다(`run`을 붙이면 �
 - 작성자 코드는 독자가 팝업을 열면 자동으로 한 번 실행된다. 위 sandbox·CSP 경계 안에서만 돈다.
 - C·C++는 iframe이 아니라 호스트 출처의 module Worker에서 돈다(원본 운영 구조와 같음). C 코드는 JSCPP가 해석하고, C++는 WASI 가져오기만 받은 WASM으로 실행되어 JavaScript·네트워크·DOM에 닿지 않는다. 격리는 이 인터프리터·WASM 경계에 기대므로 추적기를 바꿀 때 외부 API를 노출하지 않도록 주의한다. 메모리 패널 렌더러는 CSP(`connect-src 'none'`)가 걸린 출처 없는 iframe에서 돈다.
 - Babel 컴파일 워커는 하나를 재사용한다. 소스를 변환만 하고 실행하지 않으며 요청마다 독립 호출이라 이전 원문이 남지 않는다(닫고 다시 열면 원문과 출력이 처음 상태인지 테스트로 확인). 20초 안에 응답이 없으면 워커를 새로 띄운다. 실행 런타임(iframe·Worker)은 실행마다 새로 만든다.
-- 호스트 앱 전체의 COOP/COEP 같은 격리 헤더는 바꾸지 않았다. `next.config.ts`는 `/code-lab/*` 경로에만 `Access-Control-Allow-Origin: *`를 붙인다(null 출처 iframe의 글꼴 요청용).
+- 호스트 앱 전체의 COOP/COEP 같은 격리 헤더는 바꾸지 않았다. `next.config.ts`는 `/code-lab/*` 경로에만 `Access-Control-Allow-Origin: *`를 붙인다(null 출처 iframe의 글꼴 요청과 메모리 패널의 module 스크립트용).
 - sandbox iframe은 Chromium에서 부모와 같은 프로세스·스레드를 쓴다(실측: iframe 안 무한 반복이 부모 타이머를 멈춤). 그래서 메인 스레드에서 도는 HTML·React 코드에는 Babel로 반복문마다 1.5초 제한을 넣는다. 이 제한은 `await`를 포함한 반복에도 누적 시간으로 걸린다. JS·TS는 Worker에서 돌아 화면을 막지 않으며 8초 뒤 종료한다.
 - 콘솔은 실행당 500항목, 항목당 4000자까지 받는다. DOM·VDOM 트리는 2000노드까지 보낸다.
 - 다시 실행·중지·닫기·문서 교체 때는 iframe·Worker·리스너를 모두 제거한다. 늦게 도착한 메시지는 토큰과 실행 번호가 달라 버려진다.

@@ -239,6 +239,8 @@ async function startSandbox(
 // 사용자 코드는 JSCPP 가 해석하거나 WASI 가져오기만 받은 WASM 으로 돌아 JS·네트워크에 닿지 않는다.
 // 시간 제한은 원본 language-runtime.js 와 같다. 실행마다 새 워커를 만들고 끝나면 종료한다.
 
+const JMV_MAX_BYTES = 2 * 1024 * 1024;
+
 const JMV_LIMITS = {
   loadMs: 120_000,
   c: 40_000,
@@ -296,6 +298,16 @@ function startMemoryVisualizer(
   sink: RunSink,
   onCleanup: (cleanup: () => void) => void,
 ) {
+  const stdin = request.input.length ? request.input.join("\n") + "\n" : "";
+  // 원본 language-runtime.js 와 같은 코드+입력 크기 제한
+  if (new TextEncoder().encode(request.source + stdin).length > JMV_MAX_BYTES) {
+    sink.console({
+      level: "error",
+      text: "코드와 입력은 합쳐서 2MB까지 지원합니다.",
+    });
+    sink.status({ phase: "error", message: "크기 제한" });
+    return;
+  }
   const worker = new Worker(assetUrl("jmv/jmv-worker.js"), {
     type: "module",
     name: `slog-code-lab-${language}`,
@@ -353,7 +365,6 @@ function startMemoryVisualizer(
     });
   };
   limit(JMV_LIMITS.loadMs);
-  const stdin = request.input.length ? request.input.join("\n") + "\n" : "";
   worker.postMessage({ language, source: request.source, stdin });
 }
 

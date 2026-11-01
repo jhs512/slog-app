@@ -10,6 +10,16 @@ const nextConfig: NextConfig = {
         source: "/code-lab/:path*",
         headers: [{ key: "Access-Control-Allow-Origin", value: "*" }],
       },
+      // 경로에 버전이 들어 있는 C++ 컴파일러 자산(약 29MB)은 다시 받거나 재검증하지 않게 한다.
+      {
+        source: "/code-lab/jmv/browsercc-0.1.1/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
     ];
   },
   async redirects() {

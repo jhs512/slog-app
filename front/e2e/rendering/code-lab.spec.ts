@@ -338,10 +338,15 @@ test("C++: 브라우저 Clang으로 컴파일하고 선입력·참조·new/delet
     ),
   ).toEqual([]);
 
-  await replaceCode(page, "int main() { int x = ; }");
+  // include 와 감싸기 줄 수만큼 밀리지 않고 원래 4행으로 보고해야 한다.
+  await replaceCode(
+    page,
+    "#include <iostream>\n\nint main() {\n  int x = ;\n}",
+  );
   await page.getByTestId("code-lab-run").click();
   await expect(status(page)).toContainText("컴파일 오류", { timeout: 120_000 });
-  await expect(consoleOf(page)).toContainText("1행");
+  await expect(consoleOf(page)).toContainText("4행");
+  await expect(consoleOf(page)).toContainText("main.cpp:4:");
 });
 
 test("사용자 코드의 네트워크 요청은 sandbox 정책으로 막힌다", async ({
