@@ -1,5 +1,7 @@
 "use client";
 
+import dynamic from "next/dynamic";
+
 import { ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { createPortal } from "react-dom";
@@ -25,6 +27,8 @@ import {
   loadSettings,
   saveSettings,
 } from "./settings";
+
+const CodeEditor = dynamic(() => import("./CodeEditor"), { ssr: false });
 
 /** 한 번의 실행이 만든 관찰값. 실행마다 처음부터 다시 만든다. */
 interface RunOutput {
@@ -212,14 +216,7 @@ export default function CodeLabDialog({
     switch (id) {
       case "code":
         return (
-          <textarea
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-            spellCheck={false}
-            aria-label="실험 코드"
-            data-testid="code-lab-editor"
-            className="code-lab-mono h-full w-full resize-none bg-transparent p-2 text-xs outline-none"
-          />
+          <CodeEditor value={code} onChange={setCode} engine={lab.engine} />
         );
       case "input":
         return (
@@ -318,14 +315,14 @@ export default function CodeLabDialog({
   }
 
   return createPortal(
-    <div className="code-lab-overlay fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-2 sm:p-6">
+    <div className="code-lab-overlay fixed inset-0 z-[100] flex bg-background">
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="code-lab-title"
         data-testid="code-lab-dialog"
-        className="flex h-full w-full max-w-[1600px] flex-col rounded-lg border border-border bg-background text-foreground shadow-xl"
+        className="flex h-full w-full min-w-0 flex-col bg-background text-foreground"
         onKeyDownCapture={(event) => {
           if (event.nativeEvent.isComposing || event.repeat) return;
           const modifier = mac
@@ -365,7 +362,7 @@ export default function CodeLabDialog({
           if (event.key !== "Tab") return;
           const focusables = [
             ...event.currentTarget.querySelectorAll<HTMLElement>(
-              "button:not([disabled]), select, textarea, input, summary, [tabindex='0']",
+              "button:not([disabled]), select, textarea, input, summary, [contenteditable='true'], [tabindex='0']",
             ),
           ];
           const first = focusables[0];

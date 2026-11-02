@@ -76,6 +76,32 @@ async function replaceCode(page: Page, code: string) {
   await page.getByTestId("code-lab-editor").fill(code);
 }
 
+test("런박스는 전체 화면에서 구문 강조·줄 번호·들여쓰기·실행 취소를 제공한다", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  const { dialog } = await openLab(page, "interface Point");
+  const box = await dialog.boundingBox();
+  expect(box).toEqual({ x: 0, y: 0, width: 1920, height: 1080 });
+  const editor = page.getByTestId("code-lab-editor");
+  await expect(dialog.locator(".cm-lineNumbers")).toBeVisible();
+  await expect(editor.locator("span").first()).toBeVisible();
+  const colors = await editor
+    .locator("span")
+    .evaluateAll((elements) => [
+      ...new Set(elements.map((el) => getComputedStyle(el).color)),
+    ]);
+  expect(colors.length).toBeGreaterThan(1);
+  await editor.fill('console.log("editor works");');
+  await editor.press("Control+Home");
+  await editor.press("Tab");
+  await expect(editor).toContainText('  console.log("editor works");');
+  await editor.press("Control+z");
+  await expect(editor).toHaveText('console.log("editor works");');
+  await page.getByTestId("code-lab-run").click();
+  await expect(consoleOf(page)).toContainText("editor works");
+});
+
 test.beforeEach(async ({ page }) => {
   await page.goto(POST);
   await expect(page.locator(".code-lab-play").first()).toBeVisible();
@@ -127,7 +153,7 @@ test("HTML 실험: 최초 자동 실행, 수정 후 수동 실행, 닫고 다시
   await expect(dom).not.toContainText("data-slog-lab");
 
   const editor = page.getByTestId("code-lab-editor");
-  const original = await editor.inputValue();
+  const original = await editor.innerText();
   await replaceCode(page, original.replaceAll("회", "번"));
   await page.waitForTimeout(300);
   await expect(frame(page).locator("#msg")).toHaveText("1회");
@@ -141,7 +167,7 @@ test("HTML 실험: 최초 자동 실행, 수정 후 수동 실행, 닫고 다시
   await expect(page.locator("iframe.code-lab-frame")).toHaveCount(0);
 
   await play.click();
-  await expect(editor).toHaveValue(original);
+  await expect(editor).toHaveText(original, { useInnerText: true });
   await expect(frame(page).locator("#msg")).toHaveText("0회");
   await expect(consoleOf(page)).toHaveText("출력이 없습니다.");
 
@@ -346,7 +372,7 @@ test("C: 실행 중 닫고 다시 열면 이전 실행 없이 원문으로 처�
   await page.getByTestId("code-lab-close").click();
   await expect(page.getByTestId("code-lab-dialog")).toHaveCount(0);
   await play.click();
-  await expect(page.getByTestId("code-lab-editor")).toHaveValue(/malloc/);
+  await expect(page.getByTestId("code-lab-editor")).toContainText("malloc");
   await expect(page.getByTestId("code-lab-input")).toHaveValue("");
   await expect(status(page)).toContainText("입력 부족", { timeout: 30_000 });
   await expect(
@@ -462,7 +488,7 @@ test("패널 열고 닫기·배치·크기 조절은 기억하고 코드와 입�
     "aria-valuenow",
     String(after),
   );
-  await expect(page.getByTestId("code-lab-editor")).toHaveValue(/malloc/);
+  await expect(page.getByTestId("code-lab-editor")).toContainText("malloc");
   await expect(page.getByTestId("code-lab-input")).toHaveValue("");
   await dialog.getByRole("button", { name: "메모리", exact: true }).click();
   await expect(dialog.locator('[data-panel="memory"]')).toBeVisible();
@@ -481,7 +507,7 @@ test("접힌 블록과 모바일 화면에서도 실험을 열고 닫는다", as
   await openLab(page, "접힌 블록");
   await expect(consoleOf(page)).toContainText("접힌 블록");
   const box = await page.getByTestId("code-lab-dialog").boundingBox();
-  expect(box!.width).toBeLessThanOrEqual(390);
+  expect(box).toEqual({ x: 0, y: 0, width: 390, height: 780 });
   await page.getByTestId("code-lab-close").click();
   await expect(page.getByTestId("code-lab-dialog")).toHaveCount(0);
 });
@@ -565,7 +591,7 @@ test("Java: CheerpJ 공식 CDN에서 컴파일·선입력·객체 메모리, sta
 
   await page.getByTestId("code-lab-close").click();
   await play.click();
-  await expect(page.getByTestId("code-lab-editor")).toHaveValue(
+  await expect(page.getByTestId("code-lab-editor")).toContainText(
     /static int runs/,
   );
   await page.getByTestId("code-lab-stop").click();
